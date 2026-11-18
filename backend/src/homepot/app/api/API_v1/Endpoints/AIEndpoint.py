@@ -49,11 +49,13 @@ from ai.gates import (  # noqa: E402
     GateContext,
     GateStatus,
     build_envelope_from_config,
+    build_fleet_summary_envelope_from_config,
 )
 from ai.gates import EnvelopeResult  # noqa: E402
 from ai.job_scheduler import PredictiveJobScheduler  # noqa: E402
 from ai.llm import LLMService  # noqa: E402
 from ai.query_router import (  # noqa: E402
+    MODE_FLEET_SUMMARY,
     MODE_KNOWLEDGE,
     resolve_query_mode,
     routing_enabled,
@@ -218,12 +220,13 @@ class AIQueryRequest(BaseModel):
             "tool calls, then executes them sequentially. Requires agentic=True."
         ),
     )
-    mode: Literal["auto", "knowledge", "diagnostic"] = Field(
+    mode: Literal["auto", "knowledge", "fleet_summary", "diagnostic"] = Field(
         default="auto",
         description=(
             "Query path: 'auto' classifies by intent (default), 'knowledge' "
-            "answers from documentation without the device gates, 'diagnostic' "
-            "forces the operational gated path."
+            "answers from documentation without the device gates, "
+            "'fleet_summary' uses reduced inventory gates, and 'diagnostic' "
+            "forces the full operational gated path."
         ),
     )
     session_id: Optional[str] = Field(
@@ -1431,13 +1434,16 @@ async def _query_ai_impl(
             routing.resolved,
             routing.reason,
         )
+        # Fleet summaries are answer-only: they skip telemetry gates and must
+        # never offer proposal tools, even when the caller asks for agentic mode.
+        effective_agentic = request.agentic and routing.resolved != MODE_FLEET_SUMMARY
 
         # 2c. Build Long-Term Context (Vector Memory). Only the device-backed
         # diagnostic path recalls memory; knowledge answers skip it entirely so
         # they can never echo the model's own past output, and action (agentic)
         # requests skip it too (see _should_recall_memory).
         long_term_context = ""
-        if _should_recall_memory(routing.resolved, request.agentic):
+        if _should_recall_memory(routing.resolved, effective_agentic):
             try:
                 # Get Memory Stats (Self-Awareness)
                 mem_stats = memory.get_memory_stats()
@@ -1743,6 +1749,9 @@ async def _query_ai_impl(
                     trust_score=0.0,
                     failed_gate_id=None,
                 )
+            elif routing.resolved == MODE_FLEET_SUMMARY:
+                envelope = build_fleet_summary_envelope_from_config()
+                trust = await envelope.run(gate_context)
             else:
                 envelope = build_envelope_from_config()
                 trust = await envelope.run(gate_context)
@@ -1772,7 +1781,7 @@ async def _query_ai_impl(
             # queries on every chat turn once the data is already known to
             # be stale/incomplete/invalid. Best-effort: a failure here must
             # not break chat.
-            data_integrity_passed = any(
+            data_integrity_passed = routing.resolved != MODE_FLEET_SUMMARY and any(
                 g.gate_id == "B" and g.status == GateStatus.PASS
                 for g in trust.gate_results
             )
@@ -2014,7 +2023,26 @@ async def _query_ai_impl(
 
             _stream_on_delta = _forward_delta
 
-        if request.agentic:
+        # Proposal tools are blocked whenever validation did not clear the
+        # query, and unconditionally on fleet summaries even if their reduced
+        # gate set yields a grounded trust label. Otherwise the model could
+        # claim a proposal was recorded when the endpoint refuses to persist it.
+        _proposal_block_reason: Optional[str] = None
+        if routing.resolved == MODE_FLEET_SUMMARY:
+            _proposal_block_reason = "fleet summary is informational; no proposals"
+        elif not trust.is_actionable:
+            _failing_gate = trust.gate_results[-1] if trust.gate_results else None
+            _block_reasons = [
+                c.message
+                for c in (_failing_gate.checks if _failing_gate else [])
+                if not c.passed and c.message
+            ]
+            _proposal_block_reason = (
+                f"gate {trust.failed_gate_id or 'unknown'} did not pass"
+                + (f": {' '.join(_block_reasons[:2])}" if _block_reasons else "")
+            )
+
+        if effective_agentic:
             # Agentic mode: multi-step tool-calling investigation. Each LLM
             # call is routed through the same concurrency gate as a direct
             # query, and the caller's memory scope is passed in so memory-reading
@@ -2042,25 +2070,6 @@ async def _query_ai_impl(
             _total_timeout = _agent_cfg.get("total_timeout_seconds", 60)
             _planning_timeout = _agent_cfg.get("planning_timeout_seconds", 30)
             _execution_timeout = _agent_cfg.get("execution_timeout_seconds", 60)
-
-            # When validation did not clear this query, forbid the proposal
-            # tools from recording anything. Otherwise the model is told a
-            # proposal was captured, tells the technician so, and the endpoint
-            # silently drops it because it is not actionable -- an answer that
-            # claims an action that does not exist. (Observed on Brunel Device
-            # 001 when Gate B failed on stale telemetry.)
-            _proposal_block_reason: Optional[str] = None
-            if not trust.is_actionable:
-                _failing_gate = trust.gate_results[-1] if trust.gate_results else None
-                _block_reasons = [
-                    c.message
-                    for c in (_failing_gate.checks if _failing_gate else [])
-                    if not c.passed and c.message
-                ]
-                _proposal_block_reason = (
-                    f"gate {trust.failed_gate_id or 'unknown'} did not pass"
-                    + (f": {' '.join(_block_reasons[:2])}" if _block_reasons else "")
-                )
 
             try:
                 agent_result = await run_agent(
@@ -2395,7 +2404,7 @@ async def _query_ai_impl(
                     "trust_score": trust.trust_score,
                     "actionable": trust.is_actionable,
                     "failed_gate": trust.failed_gate_id,
-                    "agentic": request.agentic,
+                    "agentic": effective_agentic,
                     "routing_mode": routing_info["resolved"],
                     "routing_requested": routing_info["requested"],
                     "routing_reason": routing_info["reason"],

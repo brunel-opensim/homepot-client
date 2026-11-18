@@ -62,8 +62,22 @@ class DataIntegrityGate(Gate):
         continuity_gap_seconds: int = DEFAULT_CONTINUITY_GAP_SECONDS,
         sustained_gap_seconds: int = DEFAULT_SUSTAINED_GAP_SECONDS,
         completeness_max_null_ratio: float = DEFAULT_COMPLETENESS_MAX_NULL_RATIO,
+        telemetry_checks: bool = True,
+        connectivity_required: bool = True,
     ) -> None:
-        """Configure Gate B's tunable thresholds and Mode 2 failure fallback."""
+        """Configure Gate B's thresholds, scope and Mode 2 failure fallback.
+
+        Args:
+            freshness_max_age_seconds: Max age of the latest telemetry row.
+            continuity_gap_seconds: Allowed gap between heartbeat rows.
+            sustained_gap_seconds: Gap length classified as sustained.
+            completeness_max_null_ratio: Allowed null ratio in metrics.
+            telemetry_checks: When False, evaluate connectivity only. Used by
+                fleet-summary answers derived from the devices table, which do
+                not depend on telemetry validity.
+            connectivity_required: When False, a zero-online fleet is reported
+                as observed evidence instead of failing the gate.
+        """
         super().__init__(
             gate_id="B",
             name="Data Integrity",
@@ -74,6 +88,8 @@ class DataIntegrityGate(Gate):
         self.continuity_gap_seconds = continuity_gap_seconds
         self.sustained_gap_seconds = sustained_gap_seconds
         self.completeness_max_null_ratio = completeness_max_null_ratio
+        self.telemetry_checks = telemetry_checks
+        self.connectivity_required = connectivity_required
 
     async def collect_device_digest(
         self, context: GateContext, active_pks: list
@@ -193,11 +209,13 @@ class DataIntegrityGate(Gate):
         online_pks: List[int],
         offline_count: int,
     ) -> CheckResult:
-        """Check that the target (or fleet) device scope is online.
+        """Check or observe the target/fleet connectivity scope.
 
         A device-scoped query requires its target to be online. A fleet-scoped
         query requires at least one online device; offline/unknown devices are
-        excluded from the downstream pool rather than failing the gate.
+        excluded from the downstream pool rather than failing the gate. When
+        ``connectivity_required`` is False, connectivity is reported as observed
+        evidence and never fails the gate.
         """
         evidence = [
             EvidenceRef(
@@ -210,6 +228,20 @@ class DataIntegrityGate(Gate):
                 },
             )
         ]
+        if not self.connectivity_required:
+            observed = (
+                f"Target device is {target_connectivity}."
+                if device_int_id is not None and target_connectivity is not None
+                else f"{len(online_pks)} online device(s); "
+                f"{offline_count} offline/unknown."
+            )
+            return CheckResult(
+                check_id="B.connectivity",
+                name="Device connectivity (observed)",
+                passed=True,
+                message=f"Connectivity observed, not required: {observed}",
+                evidence=evidence,
+            )
         if device_int_id is not None:
             if target_connectivity == "online":
                 return CheckResult(
@@ -286,30 +318,37 @@ class DataIntegrityGate(Gate):
             session, device_int_id
         )
 
-        checks: List[CheckResult] = [
-            self._connectivity_check(
-                device_int_id, target_connectivity, online_pks, offline_count
-            ),
-            await self._check_completeness(
-                session, DeviceMetrics, window_start, device_int_id, online_pks
-            ),
-            await self._check_freshness(
-                session, DeviceMetrics, device_int_id, online_pks
-            ),
-        ]
-        checks.extend(
-            await self._check_continuity_and_gaps(
-                session, HealthCheck, window_start, device_int_id, online_pks
+        connectivity = self._connectivity_check(
+            device_int_id, target_connectivity, online_pks, offline_count
+        )
+        checks: List[CheckResult] = [connectivity]
+
+        if self.telemetry_checks:
+            checks.extend(
+                [
+                    await self._check_completeness(
+                        session, DeviceMetrics, window_start, device_int_id, online_pks
+                    ),
+                    await self._check_freshness(
+                        session, DeviceMetrics, device_int_id, online_pks
+                    ),
+                ]
             )
-        )
-        checks.append(
-            await self._check_validity(
-                session, DeviceMetrics, window_start, device_int_id, online_pks
+            checks.extend(
+                await self._check_continuity_and_gaps(
+                    session, HealthCheck, window_start, device_int_id, online_pks
+                )
             )
-        )
-        checks.append(
-            self._as_digest_check(await self.collect_device_digest(context, online_pks))
-        )
+            checks.append(
+                await self._check_validity(
+                    session, DeviceMetrics, window_start, device_int_id, online_pks
+                )
+            )
+            checks.append(
+                self._as_digest_check(
+                    await self.collect_device_digest(context, online_pks)
+                )
+            )
 
         status = GateStatus.PASS if all(c.passed for c in checks) else GateStatus.FAIL
         return GateResult(
