@@ -63,6 +63,19 @@ async def test_gate_b_can_skip_all_telemetry_checks():
     assert result.checks[0].passed is True
 
 
+def test_system_prompt_defines_fleet_terminology():
+    """The static prompt explains active, online and healthy consistently."""
+    from ai.system_knowledge import SystemKnowledge
+
+    prompt = SystemKnowledge(workspace_root).get_system_prompt()
+    assert "'active' means enabled/visible in the fleet" in prompt
+    assert (
+        "'online' means active with a heartbeat inside the offline threshold" in prompt
+    )
+    assert "Online is a subset of active" in prompt
+    assert "'healthy' is a separate health_state value" in prompt
+
+
 def test_fleet_summary_envelope_uses_reduced_gate_chain():
     """Only Gate A, connectivity-only Gate B and Gate C are configured."""
     envelope = build_fleet_summary_envelope()
@@ -232,6 +245,12 @@ async def test_fleet_summary_endpoint_uses_reduced_path_and_no_proposals():
 
     assert response["routing"]["resolved"] == MODE_FLEET_SUMMARY
     assert response["trust"]["trust_mode"] == MODE_GROUNDED.id
+    context = llm.generate_response.call_args.kwargs["context"]
+    assert "Active = device record is enabled and visible" in context
+    assert "Online is a subset of active" in context
+    assert "Total Active Devices (enabled/visible): 1" in context
+    assert "Online Devices (active with fresh heartbeat): 1" in context
+    assert "state both counts briefly" in context
     build_fleet.assert_called_once()
     build_full.assert_not_called()
     anomalies.assert_not_awaited()

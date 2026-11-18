@@ -14,6 +14,11 @@ export const AI_MODES = [
     title: 'Answer how-to / definition questions from documentation',
   },
   {
+    id: 'fleet_summary',
+    label: 'Fleet summary',
+    title: 'Answer fleet counts and inventory from device records',
+  },
+  {
     id: 'diagnostic',
     label: 'Diagnostic',
     title: 'Investigate live system state through the validation gates',
@@ -466,7 +471,10 @@ export function useAIConversation(variant = 'compact') {
       clearInterval(id);
     };
   }, [messages]);
-  const isKnowledge = routing?.resolved === 'knowledge' || trust?.trust_mode === 'informational';
+  const isKnowledge =
+    routing?.resolved === 'knowledge' ||
+    routing?.resolved === 'fleet_summary' ||
+    trust?.trust_mode === 'informational';
 
   return {
     variant,

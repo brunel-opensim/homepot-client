@@ -738,9 +738,10 @@ control on the fleet-summary route.
      routes to the diagnostic/action path; the fleet-summary answer itself
      creates no proposal.
 
-Status: **Partial**. Phase 1 (router classification) and phase 2 (reduced
-backend gate path) are implemented behind `AI_FLEET_SUMMARY_ROUTING` (default
-off). Phases 3 and 4 remain proposed; no user-visible behavior is enabled yet.
+Status: **Partial**. Phases 1-3 (router classification, reduced backend gate
+path, prompt/UI alignment) are implemented behind `AI_FLEET_SUMMARY_ROUTING`
+(default off). Phase 4 remains proposed; no user-visible behavior is enabled
+yet.
 
 ## 15. References
 

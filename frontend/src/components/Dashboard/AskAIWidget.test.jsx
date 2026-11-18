@@ -48,6 +48,24 @@ const knowledgeResult = {
   sources: ['docs/device-registration.md'],
 };
 
+const fleetSummaryResult = {
+  response: 'There are 3 active devices, of which 1 is online.',
+  trust: {
+    trust_mode: 'grounded',
+    trust_mode_label: 'Grounded LLM Interface',
+    trust_score: 1,
+    actionable: true,
+    passed_gates: ['A', 'B', 'C'],
+    failed_gate: null,
+    gates: [],
+  },
+  routing: {
+    requested: 'fleet_summary',
+    resolved: 'fleet_summary',
+    reason: "fleet summary signal: 'how many'",
+  },
+};
+
 const diagnosticResult = {
   response: 'No devices are currently connected.',
   trust: {
@@ -149,6 +167,44 @@ describe('AskAIWidget mode selector (docs/ai-query-routing.md §6.1)', () => {
       // Ask AI opts into the agent loop so action requests become proposals.
       true
     );
+  });
+
+  it('forwards an explicit Fleet summary override', async () => {
+    api.ai.query.mockResolvedValue(fleetSummaryResult);
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+
+    await user.selectOptions(modeGroup(), 'fleet_summary');
+    await user.type(screen.getByRole('textbox'), 'How many devices are online?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(api.ai.query).toHaveBeenCalledWith(
+      'How many devices are online?',
+      null,
+      'Admin',
+      'fleet_summary',
+      expect.any(AbortSignal),
+      expect.any(String),
+      [],
+      null,
+      null,
+      true
+    );
+  });
+
+  it('shows a Fleet summary chip for inventory answers', async () => {
+    api.ai.query.mockResolvedValue(fleetSummaryResult);
+    const user = userEvent.setup();
+    render(<AskAIWidget />);
+
+    await user.type(screen.getByRole('textbox'), 'How many devices are online?');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    const answer = await screen.findByRole('article', {
+      name: 'HOMEPOT AI response',
+    });
+    expect(within(answer).getByText('Fleet summary')).toBeInTheDocument();
+    expect(within(answer).queryByText('fleet_summary')).toBeNull();
   });
 
   it('shows a Knowledge chip (not the gate UI) for documentation answers', async () => {
