@@ -25,10 +25,12 @@ from ai.tools import (
     reset_tool_memory_scope,
     reset_tool_proposal_block_reason,
     reset_tool_proposal_sink,
+    reset_tool_template_grounding,
     reset_tool_user_scope,
     set_tool_memory_scope,
     set_tool_proposal_block_reason,
     set_tool_proposal_sink,
+    set_tool_template_grounding,
     set_tool_user_scope,
 )
 
@@ -116,6 +118,16 @@ GUIDELINES:
   becomes a tracked, auditable proposal. Do NOT answer from context alone —
   even if you already have the data, the technician wants the action recorded
   and tracked. This is the PRIMARY rule.
+- Before ANY proposal, call list_compose_templates to load the registry-backed
+  Compose Command templates. Match the request to a template, call
+  list_compose_templates(action=...) for its exact parameter keys, and propose
+  with that action and only those keys. Never invent an action or a bespoke
+  run_command string for a named capability such as setting volume or
+  restarting a service.
+- Historical configuration or command results never cancel an action request.
+  "Set volume to 50" still needs a proposal even if context says volume is
+  already 50. Never answer "already set" or "no changes needed" to an
+  imperative request.
 - Only answer directly (without proposing) for purely informational questions
   that do not imply an action: "what is the status", "how is it performing",
   "explain", "summarize".
@@ -151,6 +163,25 @@ DELEGATION:
   technician.
 - Never claim an action was performed unless get_action_plan_status confirms
   status "succeeded" with a verified outcome.
+"""
+
+# One-shot correction for action requests that were answered directly. The
+# deterministic router sees "set ... to" as action intent even when a client
+# pins mode="diagnostic", so the endpoint asks for this retry when the first
+# agent pass produced no proposal (observed on gpt-4o, 2026-11-18).
+ACTION_PROPOSAL_RETRY_INSTRUCTION = """\
+Correction: the previous answer did not record a proposal for an imperative
+device request. Do not repeat "already set", "already configured", or "no
+changes needed" from historical context.
+
+1. Call list_compose_templates to load the registry-backed Compose Command
+   templates.
+2. Call list_compose_templates(action=...) for the matching template's exact
+   parameters.
+3. Call propose_device_action with that registered action and only its
+   parameter keys.
+4. Never invent an action or a raw run_command string for a named capability.
+The technician requires a tracked proposal even when the value appears current.
 """
 
 # Appended to the agent system prompt only when the read-only repository tools
@@ -336,6 +367,7 @@ async def run_agent(
     include_repo_tools: bool = False,
     max_tool_bytes: Optional[int] = None,
     proposal_block_reason: Optional[str] = None,
+    require_action_proposal: bool = False,
     on_delta: Optional[Callable[[str], None]] = None,
 ) -> AgentResult:
     """Run the ReAct agent loop.
@@ -373,6 +405,9 @@ async def run_agent(
             anything and return this reason to the model, so a non-actionable
             validation envelope cannot produce a phantom "proposal recorded"
             claim in the final answer.
+        require_action_proposal: When True, a template lookup is required before
+            proposals are accepted, and a direct answer with no proposal gets
+            one correction pass with :data:`ACTION_PROPOSAL_RETRY_INSTRUCTION`.
 
     Returns:
         AgentResult with the final response and metadata.
@@ -422,7 +457,91 @@ async def run_agent(
     scope_token = set_tool_memory_scope(memory_scope)
     sink_token = set_tool_proposal_sink(proposals)
     proposal_block_token = set_tool_proposal_block_reason(proposal_block_reason)
+    template_token = set_tool_template_grounding(require_action_proposal)
     user_scope_token = set_tool_user_scope(user_scope)
+
+    async def _handle_response(response: Any, iteration: int) -> Tuple[bool, bool]:
+        """Append the assistant turn, execute any tools, and report stop signals.
+
+        Returns ``(final_answer, tool_budget_reached)`` so both the main loop and
+        the one-shot action retry can share identical tool-call handling.
+        """
+        nonlocal last_response_text, tool_bytes_used
+
+        assistant_msg: Dict[str, Any] = {
+            "role": response.message.role,
+            "content": response.message.content or "",
+        }
+        tool_calls_list = response.message.tool_calls or []
+        if tool_calls_list:
+            assistant_msg["tool_calls"] = tool_calls_list
+        messages.append(assistant_msg)
+
+        if not tool_calls_list:
+            last_response_text = response.message.content or ""
+            return True, False
+
+        normalized_calls = []
+        for call in tool_calls_list:
+            args = call.function.arguments
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (json.JSONDecodeError, ValueError):
+                    args = {}
+            if not isinstance(args, dict):
+                args = {}
+            normalized_calls.append((call, args))
+
+        async def _exec_one(
+            call: Any, args: Dict[str, Any]
+        ) -> Tuple[str, Dict[str, Any], str, Any]:
+            tool_name = call.function.name
+            record = ToolCallRecord(
+                tool_name=tool_name,
+                iteration=iteration + 1,
+                arguments=args,
+            )
+            tools_called.append(record)
+            result = await _execute_tool(tool_name, args, allowed_tool_names)
+            record.result_preview = result[:200]
+            logger.info(
+                "Agent tool call: %s(%s) -> %d chars",
+                tool_name,
+                args,
+                len(result),
+            )
+            return tool_name, args, result, call
+
+        exec_results = await asyncio.gather(
+            *[_exec_one(c, a) for c, a in normalized_calls],
+            return_exceptions=True,
+        )
+
+        for res in cast(List[Any], exec_results):
+            if isinstance(res, Exception):
+                logger.error("Tool execution failed: %s", res)
+                continue
+            tool_name, _args, result, call = res
+            tool_bytes_used += len(result)
+            _call_id = getattr(call, "id", None)
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_name": tool_name,
+                    "tool_call_id": _call_id,
+                    "content": result,
+                }
+            )
+
+        if max_tool_bytes is not None and tool_bytes_used >= max_tool_bytes:
+            logger.info(
+                "Agent tool byte budget reached (%d >= %d); forcing answer",
+                tool_bytes_used,
+                max_tool_bytes,
+            )
+            return False, True
+        return False, False
 
     # Plan-and-execute mode: separate planning from execution
     if plan_and_execute:
@@ -564,12 +683,13 @@ async def run_agent(
         reset_tool_memory_scope(scope_token)
         reset_tool_proposal_sink(sink_token)
         reset_tool_proposal_block_reason(proposal_block_token)
+        reset_tool_template_grounding(template_token)
         reset_tool_user_scope(user_scope_token)
-        scope_token = scope_token  # keep for finally (no-op reset)
         # Mark as consumed so finally doesn't double-reset
         scope_token = None  # type: ignore[assignment]
         sink_token = None  # type: ignore[assignment]
         proposal_block_token = None  # type: ignore[assignment]
+        template_token = None  # type: ignore[assignment]
         user_scope_token = None  # type: ignore[assignment]
 
         total_ms = int((time.monotonic() - start_time) * 1000)
@@ -616,88 +736,53 @@ async def run_agent(
                 fell_back_to_direct = True
                 break
 
-            # Append assistant message to history
-            assistant_msg: Dict[str, Any] = {
-                "role": response.message.role,
-                "content": response.message.content or "",
-            }
-            if response.message.tool_calls:
-                assistant_msg["tool_calls"] = response.message.tool_calls
-            messages.append(assistant_msg)
-
-            # Check if model produced a final answer (no tool calls)
-            if not response.message.tool_calls:
-                last_response_text = response.message.content or ""
+            final_answer, budget_reached = await _handle_response(response, iteration)
+            if final_answer or budget_reached:
                 break
 
-            # Execute each tool call
-            tool_calls_list = response.message.tool_calls
-            # Normalize arguments: OpenAI returns JSON strings
-            normalized_calls = []
-            for call in tool_calls_list:
-                args = call.function.arguments
-                if isinstance(args, str):
-                    try:
-                        args = json.loads(args)
-                    except (json.JSONDecodeError, ValueError):
-                        args = {}
-                if not isinstance(args, dict):
-                    args = {}
-                normalized_calls.append((call, args))
-
-            # Execute tools in parallel when possible
-            async def _exec_one(
-                call: Any, args: Dict[str, Any]
-            ) -> Tuple[str, Dict[str, Any], str, Any]:
-                tool_name = call.function.name
-                record = ToolCallRecord(
-                    tool_name=tool_name,
-                    iteration=iteration + 1,
-                    arguments=args,
-                )
-                tools_called.append(record)
-                result = await _execute_tool(tool_name, args, allowed_tool_names)
-                record.result_preview = result[:200]
-                logger.info(
-                    "Agent tool call: %s(%s) -> %d chars",
-                    tool_name,
-                    args,
-                    len(result),
-                )
-                return tool_name, args, result, call
-
-            # Run all tool calls in parallel
-            exec_results = await asyncio.gather(
-                *[_exec_one(c, a) for c, a in normalized_calls],
-                return_exceptions=True,
+        # Deterministic correction for imperative queries that were answered
+        # directly (e.g. "already set" from historical config context). Give
+        # the model a bounded second pass that must consult the template
+        # registry before proposing. No approval or execution happens here.
+        if require_action_proposal and not proposals and not fell_back_to_direct:
+            logger.info(
+                "Action query produced no proposal; running template-grounded retry"
             )
-
-            for res in cast(List[Any], exec_results):
-                if isinstance(res, Exception):
-                    logger.error("Tool execution failed: %s", res)
-                    continue
-                tool_name, args, result, call = res
-                tool_bytes_used += len(result)
-
-                # Feed result back as tool message
-                _call_id = getattr(call, "id", None)
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_name": tool_name,
-                        "tool_call_id": _call_id,
-                        "content": result,
-                    }
+            messages.append(
+                {"role": "user", "content": ACTION_PROPOSAL_RETRY_INSTRUCTION}
+            )
+            for retry_iteration in range(3):
+                _total_timeout = (
+                    total_timeout
+                    if total_timeout is not None
+                    else TOTAL_TIMEOUT_SECONDS
                 )
+                if time.monotonic() - start_time > _total_timeout:
+                    logger.warning("Action retry hit total timeout")
+                    break
+                try:
+                    if on_delta is not None:
+                        response = await _generate_with_gate_stream(
+                            llm, messages, tool_functions, gate, on_delta
+                        )
+                    else:
+                        response = await _generate_with_gate(
+                            llm, messages, tool_functions, gate
+                        )
+                except AIBusyError:
+                    logger.warning("Action retry hit a saturated gate")
+                    break
+                except Exception as e:
+                    logger.error("Action retry LLM call failed: %s", e)
+                    fell_back_to_direct = True
+                    break
 
-            # Stop offering tools once the per-run byte budget is spent
-            if max_tool_bytes is not None and tool_bytes_used >= max_tool_bytes:
-                logger.info(
-                    "Agent tool byte budget reached (%d >= %d); forcing answer",
-                    tool_bytes_used,
-                    max_tool_bytes,
+                final_answer, budget_reached = await _handle_response(
+                    response, max_iterations + retry_iteration
                 )
-                break
+                if final_answer or budget_reached:
+                    break
+
         # If we exhausted iterations without a final answer, ask for one
         if not last_response_text:
             messages.append(
@@ -740,6 +825,8 @@ async def run_agent(
             reset_tool_proposal_sink(sink_token)
         if proposal_block_token is not None:
             reset_tool_proposal_block_reason(proposal_block_token)
+        if template_token is not None:
+            reset_tool_template_grounding(template_token)
         if user_scope_token is not None:
             reset_tool_user_scope(user_scope_token)
 

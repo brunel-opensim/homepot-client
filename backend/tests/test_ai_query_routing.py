@@ -26,11 +26,21 @@ from ai.query_router import (  # noqa: E402
     MODE_FLEET_SUMMARY,
     MODE_KNOWLEDGE,
     fleet_summary_routing_enabled,
+    query_has_action_intent,
     resolve_query_mode,
     routing_enabled,
 )
 
 # ── Router: classification ───────────────────────────────────────────────────
+
+
+def test_action_intent_helper_detects_imperatives_even_with_forced_mode():
+    """The endpoint needs this because explicit diagnostic hides router signals."""
+    assert query_has_action_intent(
+        "Set the volume to 50 and brightness to 75 on device X."
+    )
+    assert query_has_action_intent("Restart service Spooler on device X.")
+    assert not query_has_action_intent("What is the current system status?")
 
 
 @pytest.mark.parametrize(

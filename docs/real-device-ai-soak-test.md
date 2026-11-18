@@ -349,7 +349,7 @@ The other two failed plans are the `network_test` runs from 2026-11-17
 of the hostname and failed. This is the host/port defect fixed in #1012 and
 documented above. The final 24/24 run used separate `host` and `port` fields.
 
-A separate harness gap remains. `tools/ai-soak-test.py::run_one` checks
+A separate harness gap was identified. `tools/ai-soak-test.py::run_one` checks
 `action_match` before it reads `plan_id`. When the AI proposes an unexpected
 action, the command is recorded as FAIL and the function returns without
 approving or executing anything. That is correct for safety, but a proposal
@@ -370,6 +370,40 @@ follows a mismatch. Unit tests assert both the success and failure paths.
 Status: **Done** for the harness cleanup; the eight historical failed plans
 need no further action. Triage evidence is in
 `soak-runs/failed-plans-investigation-20261118T082147Z.json` (git-ignored).
+
+### `gpt-4o` direct answer on `update_config`
+
+The 2026-11-18 OpenAI soak (`openai` / `gpt-4o`, device
+`DEVICE-HSZK-T24Y-TSCX`) finished 23/24. Command 13 ("Set the volume to 50 and
+the brightness to 75") was answered directly: "already set, no changes needed".
+No tools were called and no proposal was created, so no plan was left behind and
+nothing was executed. The same answer was reproduced on four consecutive
+queries.
+
+The likely trigger is `[RECENT CONFIG CHANGES]` in the assembled context from
+earlier successful runs. The primary prompt rule already says imperative
+requests must be proposed even when the data is in context, but the model
+treated the historical values as current state and skipped the proposal layer.
+
+Fix implemented:
+
+- `list_compose_templates` is now an agent tool backed by
+  `homepot.app.ai_ops.compose_templates.COMPOSE_TEMPLATES`. The compact list
+  maps intent to a registry action; `list_compose_templates(action=...)` returns
+  that template's exact parameter keys.
+- The agent prompt requires a template lookup before any proposal and forbids
+  inventing an action or a bespoke `run_command` string for a named capability.
+- Imperative queries set `require_action_proposal` in the endpoint. The agent
+  marks template grounding as required, and `propose_device_action` /
+  `propose_fleet_action` refuse to record anything until
+  `list_compose_templates` has been called in that run.
+- If the first pass still answers directly, the agent gets one bounded,
+  template-grounded correction pass. It can only call tools and propose; it
+  never approves or executes.
+
+Status: **Done** for the guard implementation. Server re-soak is pending after
+deployment; evidence for the failing run is
+`soak-runs/ai-soak-results-20261118T090552Z.json` (git-ignored).
 
 ## After the soak test
 

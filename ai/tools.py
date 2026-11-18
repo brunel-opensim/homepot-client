@@ -123,6 +123,61 @@ def get_tool_proposal_block_reason() -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# Compose-template grounding — per-run ContextVar
+# ---------------------------------------------------------------------------
+#
+# Imperative requests must be mapped onto a registry-backed Compose Command
+# template before a proposal tool can be used. Without this, the model can
+# invent a plausible-sounding action or stuff a bespoke shell command into
+# ``run_command``. The agent marks grounding as required for action runs;
+# ``list_compose_templates`` marks it satisfied, and the proposal tools refuse
+# until then. Direct tool tests that call ``propose_device_action`` outside an
+# agent run are unaffected because grounding is only required when the agent
+# explicitly asks for it.
+
+_TEMPLATE_GROUNDING_STATE: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "tool_template_grounding_state", default="not_required"
+)
+
+
+def set_tool_template_grounding(required: bool) -> contextvars.Token:
+    """Require (or waive) a Compose template lookup for this run."""
+    return _TEMPLATE_GROUNDING_STATE.set("required" if required else "not_required")
+
+
+def reset_tool_template_grounding(token: contextvars.Token) -> None:
+    """Restore the previous template-grounding state using ``set_...`` token."""
+    _TEMPLATE_GROUNDING_STATE.reset(token)
+
+
+def mark_compose_templates_loaded() -> None:
+    """Record that the registry-backed template list was read this run."""
+    _TEMPLATE_GROUNDING_STATE.set("loaded")
+
+
+def compose_templates_required() -> bool:
+    """Return True when this run requires a template lookup before proposing."""
+    return _TEMPLATE_GROUNDING_STATE.get() == "required"
+
+
+def compose_templates_loaded() -> bool:
+    """Return True when this run has already read the template registry."""
+    return _TEMPLATE_GROUNDING_STATE.get() == "loaded"
+
+
+def template_grounding_error() -> Optional[str]:
+    """Return a tool-level refusal when a required template lookup was skipped."""
+    if compose_templates_required() and not compose_templates_loaded():
+        return (
+            "Proposal NOT recorded: call list_compose_templates first. Match the "
+            "request to a registry-backed Compose Command template and use only "
+            "that action name and parameter keys; do not invent an action or a "
+            "raw run_command string for a named capability."
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # User scope (RBAC) — per-run ContextVar
 # ---------------------------------------------------------------------------
 # Tracks the authenticated user's accessible device IDs and minimum role for
@@ -882,6 +937,73 @@ async def get_alerts(severity: Optional[str] = None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tool 8b: list_compose_templates
+# ---------------------------------------------------------------------------
+
+
+def list_compose_templates(action: str = "") -> str:
+    """List registry-backed Compose Command templates before proposing an action.
+
+    Call this tool FIRST for every imperative device request, before
+    ``propose_device_action`` or ``propose_fleet_action``. The compact list maps
+    the request to a template key and registered action. Call it again with an
+    ``action`` value to see that template's full default parameters, then use
+    only that action name and those parameter keys in the proposal. Never
+    invent a new action or a bespoke ``run_command`` string for a named
+    capability such as setting volume or restarting a service.
+
+    Args:
+        action: Optional registered action name to show full template details.
+            Leave empty to list every template compactly.
+
+    Returns:
+        The matching Compose Command template(s) from the shared backend registry.
+    """
+    try:
+        from homepot.app.ai_ops.compose_templates import COMPOSE_TEMPLATES
+    except Exception as e:
+        logger.error("list_compose_templates failed: %s", e)
+        return f"Error loading Compose Command templates: {e}"
+
+    wanted = (action or "").strip()
+    entries = [
+        (key, template)
+        for key, template in COMPOSE_TEMPLATES.items()
+        if not wanted or str(template.get("action", "")) == wanted
+    ]
+    if not entries:
+        return f"No Compose Command template found for action '{wanted}'."
+
+    mark_compose_templates_loaded()
+    if wanted:
+        payload = {
+            key: {
+                "label": template.get("label"),
+                "action": template.get("action"),
+                "group": template.get("group"),
+                "permission": template.get("permission"),
+                "defaultData": template.get("defaultData"),
+                "defaultDataByOS": template.get("defaultDataByOS", {}),
+                "description": template.get("description"),
+            }
+            for key, template in entries
+        }
+        return json.dumps(payload, default=str)
+
+    lines = [
+        "REGISTRY-BACKED COMPOSE COMMAND TEMPLATES",
+        "Call list_compose_templates(action=...) for one template's full defaults.",
+    ]
+    for key, template in entries:
+        params = ", ".join(sorted((template.get("defaultData") or {}).keys())) or "-"
+        lines.append(
+            f"- {key}: {template.get('label')} -> {template.get('action')} "
+            f"[{params}]"
+        )
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Tool 9: propose_device_action
 # ---------------------------------------------------------------------------
 
@@ -894,6 +1016,9 @@ ALWAYS use this when the user asks you to DO something on a device, even
 if you already have the data in context. Keywords that imply an action:
 "run", "list", "scan", "check", "start", "stop", "install", "execute",
 "show me processes", "show me connections", "what programs are installed".
+FIRST call list_compose_templates and choose a registry-backed template; use
+only its action and parameter keys. Never invent an action or a bespoke
+run_command string for a named capability such as setting volume.
 This records a *proposal* only: a technician must review and approve
 before anything runs. Never claim an action was performed — always tell
 the user it is pending approval.
@@ -952,6 +1077,10 @@ async def propose_device_action(
     params: Optional[str] = None,
 ) -> str:
     """Propose a device-management action for technician approval."""
+    grounding_error = template_grounding_error()
+    if grounding_error is not None:
+        return grounding_error
+
     block_reason = get_tool_proposal_block_reason()
     if block_reason is not None:
         return (
@@ -1058,6 +1187,12 @@ async def propose_fleet_action(
     Returns:
         A summary of how many proposals were recorded, or an error.
     """
+    grounding_error = template_grounding_error()
+    if grounding_error is not None:
+        return grounding_error.replace(
+            "Proposal NOT recorded", "Proposals NOT recorded"
+        )
+
     block_reason = get_tool_proposal_block_reason()
     if block_reason is not None:
         return (
@@ -1262,6 +1397,7 @@ TOOL_REGISTRY = {
     "find_device": (find_device, True),
     "list_devices": (list_devices, True),
     "get_alerts": (get_alerts, True),
+    "list_compose_templates": (list_compose_templates, False),
     "propose_device_action": (propose_device_action, True),
     "propose_fleet_action": (propose_fleet_action, True),
     "get_action_plan_status": (get_action_plan_status, True),
@@ -1280,6 +1416,7 @@ TOOL_FUNCTIONS = [
     find_device,
     list_devices,
     get_alerts,
+    list_compose_templates,
     propose_device_action,
     propose_fleet_action,
     get_action_plan_status,
