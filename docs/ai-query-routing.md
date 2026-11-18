@@ -609,9 +609,9 @@ online."
 - Would an explicit `scope` or `needs` parameter be more reliable than
   natural-language routing?
 
-Status: **Open** (design discussion only; no code changes).
+Status: **Resolved** by the `fleet_summary` route; see §14.2.
 
-## 14.2 Implementation plan (proposed, not implemented)
+## 14.2 Implementation plan (implemented in phases 1-4)
 
 The following sequence keeps each change reviewable and avoids altering action
 or proposal behavior while the new route is being validated.
@@ -683,6 +683,18 @@ uses the existing `Online Devices` count from `site_context`.
 - Keep `fleet_summary` answers non-actionable at the tool level: no proposal
   tools, no approval flow, even if trust is grounded.
 
+### Phase 4 — Enable, status and acceptance
+
+**Files:** `ai/query_router.py`, `backend/tests/test_ai_query_routing.py`,
+`backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py`,
+`docs/ai-delegation-plan.md`, this document.
+
+- Flip `AI_FLEET_SUMMARY_ROUTING` to default on. Setting it to an off-value
+  still restores the original binary knowledge/diagnostic split.
+- Log `routing.resolved` and the selected gate IDs on every query.
+- Add the status-matrix row in `docs/ai-delegation-plan.md` §17.7.
+- Run and record the acceptance checks below after server rollout.
+
 ### Proposal-creation invariant
 
 The current endpoint already enforces the rule that a proposal is created only
@@ -714,9 +726,9 @@ control on the fleet-summary route.
 
 ### Verification and rollout
 
-- Add an env flag such as `AI_FLEET_SUMMARY_ROUTING` (default off) for phases 2
-  and 3, then enable it after local and server verification.
-- Log `routing.resolved` and the selected gate IDs on every query.
+- `AI_FLEET_SUMMARY_ROUTING` is on by default; an off-value restores the
+  original binary split without a code change.
+- `routing.resolved` and the selected gate IDs are logged on every query.
 - Add a status row to `docs/ai-delegation-plan.md` section 17.7 when the work is
   implemented.
 - Acceptance checks:
@@ -738,10 +750,26 @@ control on the fleet-summary route.
      routes to the diagnostic/action path; the fleet-summary answer itself
      creates no proposal.
 
-Status: **Partial**. Phases 1-3 (router classification, reduced backend gate
-path, prompt/UI alignment) are implemented behind `AI_FLEET_SUMMARY_ROUTING`
-(default off). Phase 4 remains proposed; no user-visible behavior is enabled
-yet.
+Status: **Partial**. Phases 1-4 are implemented and
+`AI_FLEET_SUMMARY_ROUTING` is on by default. Server acceptance results in
+§14.3 are pending rollout.
+
+## 14.3 Acceptance results
+
+Server acceptance is run after the phase 4 rollout. Each row records the
+observed `routing.resolved` value, selected gates, and answer behavior.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | "How many active devices are online?" -> grounded, both counts stated | Pending rollout |
+| 2 | "How many devices are active?" -> active count, not online count | Pending rollout |
+| 3 | "How many devices are online?" -> online count | Pending rollout |
+| 4 | "How many healthy devices are online?" -> health and connectivity distinct | Pending rollout |
+| 5 | "Why is device X offline?" -> diagnostic, full gates | Pending rollout |
+| 6 | "How many devices have high memory?" -> diagnostic, telemetry gates | Pending rollout |
+| 7 | "How do I enroll a device?" -> knowledge | Pending rollout |
+| 8 | "Restart device X" -> action path, full gates, registered action | Pending rollout |
+| 9 | Compose-command request after a fleet-summary answer -> action path; fleet-summary answer creates no proposal | Pending rollout |
 
 ## 15. References
 

@@ -103,10 +103,10 @@ def test_router_keeps_telemetry_counts_diagnostic(query):
     assert decision.resolved == MODE_DIAGNOSTIC
 
 
-def test_router_fleet_summary_disabled_by_default():
-    """Phase 1 classification is opt-in; the default stays diagnostic."""
+def test_router_fleet_summary_enabled_by_default():
+    """Fleet-summary classification is enabled after phase 4."""
     decision = resolve_query_mode("How many active devices are online?", enabled=True)
-    assert decision.resolved == MODE_DIAGNOSTIC
+    assert decision.resolved == MODE_FLEET_SUMMARY
 
 
 def test_router_fleet_summary_action_beats_aggregate_signal():
@@ -201,6 +201,12 @@ def test_routing_enabled_for_non_off_values(raw):
 def test_routing_disabled_for_off_values(raw):
     """Off-values of AI_QUERY_ROUTING disable heuristic routing."""
     assert routing_enabled(raw) is False
+
+
+def test_fleet_summary_routing_enabled_by_default():
+    """Fleet-summary classification is on unless explicitly disabled."""
+    with patch.dict(os.environ, {}, clear=True):
+        assert fleet_summary_routing_enabled() is True
 
 
 @pytest.mark.parametrize("raw", ["heuristics", "on", "1", "true", "AUTO"])
