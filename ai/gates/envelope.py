@@ -187,3 +187,46 @@ def build_default_envelope(**overrides: Any) -> ValidationEnvelope:
             LifecycleIntegrityGate(),
         ]
     )
+
+
+def build_fleet_summary_envelope(**overrides: Any) -> ValidationEnvelope:
+    """Build the reduced Gate A + B(connectivity) + C envelope.
+
+    Fleet-summary answers are derived from the devices table, not from
+    telemetry. Gate B therefore runs its connectivity check as evidence but
+    skips completeness/freshness/continuity/validity checks and does not fail
+    when no device is online. Gate D and Gate E are device-level controls and
+    are not part of this fleet-inventory path; no proposals are available on it.
+    """
+    from .gate_a import ContractInfrastructureGate
+    from .gate_b import DataIntegrityGate
+    from .gate_c import ContextReadinessGate
+
+    gate_b_kwargs = {
+        k: v
+        for k, v in overrides.items()
+        if k
+        in (
+            "freshness_max_age_seconds",
+            "continuity_gap_seconds",
+            "sustained_gap_seconds",
+            "completeness_max_null_ratio",
+        )
+    }
+    gate_c_kwargs = {
+        k: v
+        for k, v in overrides.items()
+        if k in ("required_blocks", "max_context_chars")
+    }
+
+    return ValidationEnvelope(
+        [
+            ContractInfrastructureGate(),
+            DataIntegrityGate(
+                telemetry_checks=False,
+                connectivity_required=False,
+                **gate_b_kwargs,
+            ),
+            ContextReadinessGate(**gate_c_kwargs),
+        ]
+    )

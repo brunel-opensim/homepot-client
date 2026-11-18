@@ -64,3 +64,15 @@ def build_envelope_from_config() -> Any:
 
     kwargs = {**gate_b_kwargs(), **gate_c_kwargs()}
     return build_default_envelope(**kwargs)
+
+
+def build_fleet_summary_envelope_from_config() -> Any:
+    """Build the reduced fleet-summary envelope from ``ai/config.yaml``.
+
+    Uses the same Gate B/C thresholds as the canonical envelope, but Gate B
+    observes connectivity only and skips telemetry integrity checks.
+    """
+    from .envelope import build_fleet_summary_envelope
+
+    kwargs = {**gate_b_kwargs(), **gate_c_kwargs()}
+    return build_fleet_summary_envelope(**kwargs)

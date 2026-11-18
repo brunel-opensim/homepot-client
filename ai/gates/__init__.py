@@ -41,8 +41,13 @@ from .base import (
     GateStatus,
     Mode,
 )
-from .config import build_envelope_from_config
-from .envelope import EnvelopeResult, ValidationEnvelope, build_default_envelope
+from .config import build_envelope_from_config, build_fleet_summary_envelope_from_config
+from .envelope import (
+    EnvelopeResult,
+    ValidationEnvelope,
+    build_default_envelope,
+    build_fleet_summary_envelope,
+)
 from .gate_a import ContractInfrastructureGate
 from .gate_b import DataIntegrityGate
 from .gate_c import ContextReadinessGate
@@ -66,7 +71,9 @@ __all__ = [
     "EnvelopeResult",
     "ValidationEnvelope",
     "build_default_envelope",
+    "build_fleet_summary_envelope",
     "build_envelope_from_config",
+    "build_fleet_summary_envelope_from_config",
     "ContractInfrastructureGate",
     "DataIntegrityGate",
     "ContextReadinessGate",
