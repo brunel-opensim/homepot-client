@@ -23,7 +23,9 @@ from ai.context_builder import ContextBuilder  # noqa: E402
 from ai.query_router import (  # noqa: E402
     MODE_AUTO,
     MODE_DIAGNOSTIC,
+    MODE_FLEET_SUMMARY,
     MODE_KNOWLEDGE,
+    fleet_summary_routing_enabled,
     resolve_query_mode,
     routing_enabled,
 )
@@ -61,6 +63,78 @@ def test_router_classifies_knowledge(query):
 def test_router_classifies_diagnostic(query):
     """Operational / ambiguous phrasings resolve conservatively to diagnostic."""
     assert resolve_query_mode(query, enabled=True).resolved == MODE_DIAGNOSTIC
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "How many active devices are online?",
+        "How many devices are active?",
+        "How many devices are online?",
+        "How many healthy devices are online?",
+        "How many devices are at Site A?",
+        "List sites",
+        "List all devices",
+        "Which devices are paired?",
+        "Device inventory",
+        "Fleet status",
+    ],
+)
+def test_router_classifies_fleet_summary_when_opted_in(query):
+    """Aggregate inventory questions route to the opt-in fleet_summary class."""
+    decision = resolve_query_mode(query, enabled=True, fleet_summary_enabled=True)
+    assert decision.resolved == MODE_FLEET_SUMMARY
+    assert "fleet summary" in decision.reason
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "How many devices reported high CPU?",
+        "How many devices have high memory?",
+        "How many devices have stale heartbeats?",
+        "List devices with disk errors",
+        "How many devices have failed today?",
+    ],
+)
+def test_router_keeps_telemetry_counts_diagnostic(query):
+    """A count that depends on telemetry must not use the lighter path."""
+    decision = resolve_query_mode(query, enabled=True, fleet_summary_enabled=True)
+    assert decision.resolved == MODE_DIAGNOSTIC
+
+
+def test_router_fleet_summary_disabled_by_default():
+    """Phase 1 classification is opt-in; the default stays diagnostic."""
+    decision = resolve_query_mode("How many active devices are online?", enabled=True)
+    assert decision.resolved == MODE_DIAGNOSTIC
+
+
+def test_router_fleet_summary_action_beats_aggregate_signal():
+    """An imperative action stays on the fully gated diagnostic path."""
+    decision = resolve_query_mode(
+        "Restart the 3 offline devices", enabled=True, fleet_summary_enabled=True
+    )
+    assert decision.resolved == MODE_DIAGNOSTIC
+    assert "action" in decision.reason
+
+
+def test_router_fleet_summary_device_scope_beats_aggregate_signal():
+    """A concrete device scope keeps the question diagnostic."""
+    decision = resolve_query_mode(
+        "How many processes are running?",
+        device_id="dev-1",
+        enabled=True,
+        fleet_summary_enabled=True,
+    )
+    assert decision.resolved == MODE_DIAGNOSTIC
+    assert "device_id" in decision.reason
+
+
+def test_router_fleet_summary_explicit_override():
+    """An explicit fleet_summary mode is accepted by the router."""
+    decision = resolve_query_mode("hello", requested=MODE_FLEET_SUMMARY, enabled=False)
+    assert decision.resolved == MODE_FLEET_SUMMARY
+    assert "explicit override" in decision.reason
 
 
 def test_router_action_signal_routes_diagnostic():
@@ -127,6 +201,18 @@ def test_routing_enabled_for_non_off_values(raw):
 def test_routing_disabled_for_off_values(raw):
     """Off-values of AI_QUERY_ROUTING disable heuristic routing."""
     assert routing_enabled(raw) is False
+
+
+@pytest.mark.parametrize("raw", ["heuristics", "on", "1", "true", "AUTO"])
+def test_fleet_summary_routing_enabled_for_non_off_values(raw):
+    """Any non-off value of AI_FLEET_SUMMARY_ROUTING enables the opt-in class."""
+    assert fleet_summary_routing_enabled(raw) is True
+
+
+@pytest.mark.parametrize("raw", ["off", "OFF", "0", "false", "no", "disabled", "none"])
+def test_fleet_summary_routing_disabled_for_off_values(raw):
+    """Off-values of AI_FLEET_SUMMARY_ROUTING keep the class disabled."""
+    assert fleet_summary_routing_enabled(raw) is False
 
 
 # ── Endpoint: knowledge path ─────────────────────────────────────────────────
