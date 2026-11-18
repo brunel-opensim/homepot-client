@@ -116,6 +116,7 @@ function ConversationMessage({ message }) {
   const resolved =
     message.routing?.resolved ||
     (message.trust?.trust_mode === 'informational' ? 'knowledge' : null);
+  const resolvedLabel = resolved === 'fleet_summary' ? 'Fleet summary' : resolved;
   return (
     <article
       className={`ai-turn ${assistant ? 'ai-assistant-turn' : 'ai-user-turn'}`}
@@ -130,7 +131,11 @@ function ConversationMessage({ message }) {
       {assistant && (
         <>
           <div className="ai-message-meta">
-            {resolved && <span className="capitalize">{resolved}</span>}
+            {resolvedLabel && (
+              <span className={resolved === 'fleet_summary' ? '' : 'capitalize'}>
+                {resolvedLabel}
+              </span>
+            )}
             {message.provider && (
               <span>
                 {message.provider}

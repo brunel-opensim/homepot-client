@@ -1956,14 +1956,22 @@ async def _query_ai_impl(
         # docs/ai-llm-providers.md for the provider-specific context limits.
         full_context += (
             "\n\n========== FLEET STATUS (AUTHORITATIVE) ==========\n"
+            "Active = device record is enabled and visible in the fleet "
+            "(is_active).\n"
+            "Online = an active device whose latest heartbeat is inside the "
+            "offline threshold. Online is a subset of active.\n"
+            "Offline/Unknown = an active device with a stale or absent heartbeat.\n"
+            "Healthy = health_state is healthy. Health is separate from online.\n"
             f"Total Sites: {len(sites)}\n"
-            f"Total Active Devices: {len(all_active_devices)}\n"
-            f"Online Devices: {online_count}\n"
-            f"Healthy Devices: {healthy_count}\n"
-            f"Offline Devices: {len(all_active_devices) - online_count}\n"
+            f"Total Active Devices (enabled/visible): {len(all_active_devices)}\n"
+            f"Online Devices (active with fresh heartbeat): {online_count}\n"
+            f"Healthy Devices (health_state=healthy): {healthy_count}\n"
+            f"Offline/Unknown Devices: {len(all_active_devices) - online_count}\n"
             'RULE: Report the numbers above verbatim. Do NOT say "0 sites", '
             '"no devices", "inactive", or "dormant". The fleet has '
-            "the counts shown above.\n"
+            "the counts shown above. If a question mixes active and online, "
+            "state both counts briefly: 'There are N active devices, of which "
+            "M are online.'\n"
             "=================================================\n"
         )
 
