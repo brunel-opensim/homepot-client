@@ -6,8 +6,9 @@ because a soak run must never be able to touch real hardware or the LLM from a
 test suite.
 
 These pin the behaviours that are easy to get wrong: gate failures must be
-reported as BLOCKED (not FAIL), a wrong action must not be scored as a pass,
-and a plan that reached ``succeeded`` without a verified outcome must not count.
+reported as BLOCKED (not FAIL), a wrong action must not be scored as a pass and
+its persisted plan must be rejected, and a plan that reached ``succeeded``
+without a verified outcome must not count.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -410,10 +411,10 @@ def test_resolve_provider_records_without_switch(soak):
 
 
 class FakeClient:
-    """API double covering query, plan, approve, execute and verification."""
+    """API double covering query, plan, reject, approve, execute and verification."""
 
-    def __init__(self, query=None, plan_status="pending_approval"):
-        """Record the query response and the first plan status."""
+    def __init__(self, query=None, plan_status="pending_approval", reject_error=None):
+        """Record the query response, first plan status and reject failure."""
         self.query = query or {
             "trust": {"actionable": True},
             "proposal": {
@@ -422,14 +423,17 @@ class FakeClient:
             },
         }
         self.plan_status = plan_status
+        self.reject_error = reject_error
         self.plan_gets = 0
         self.posts = []
 
     def post(self, url, json=None, timeout=None):
-        """Serve the AI query, approve, step-approve and execute endpoints."""
+        """Serve the AI query, decision, step-approve and execute endpoints."""
         self.posts.append((url, json))
         if url.endswith("/ai/query"):
             return FakeResponse(self.query)
+        if url.endswith("/reject") and self.reject_error is not None:
+            raise self.reject_error
         return FakeResponse({})
 
     def get(self, url, params=None):
@@ -500,8 +504,8 @@ def test_run_one_gate_blocked(soak):
     assert record["gate_failure"] == "B"
 
 
-def test_run_one_wrong_action_is_failed(soak):
-    """A proposal for the wrong action is a FAIL, never a silent pass."""
+def test_run_one_wrong_action_is_failed_and_rejected(soak):
+    """A wrong action is a FAIL and its persisted plan is rejected, not executed."""
     client = FakeClient(
         query={
             "trust": {"actionable": True},
@@ -520,6 +524,42 @@ def test_run_one_wrong_action_is_failed(soak):
     record = soak.run_one(client, "http://x", "D", 1, spec, SOAK_ARGS)
     assert record["outcome"] == soak.OUTCOME_FAIL
     assert not record["checks"]["action_match"]
+    assert record["plan_id"] == "p1"
+    assert record["checks"]["persisted"]
+    assert record["rejected_plan"]["ok"] is True
+    assert "run_command" in record["rejected_plan"]["reason"]
+
+    reject_posts = [post for post in client.posts if post[0].endswith("/reject")]
+    assert len(reject_posts) == 1
+    assert reject_posts[0][0].endswith("/ai/action-plans/p1/reject")
+    assert "run_command" in reject_posts[0][1]["reason"]
+    assert not any("/approve" in url or "/execute" in url for url, _ in client.posts)
+
+
+def test_run_one_wrong_action_reject_failure_is_recorded(soak):
+    """A failed reject call is recorded but never turns the command into a pass."""
+    client = FakeClient(
+        query={
+            "trust": {"actionable": True},
+            "proposal": {
+                "plan_id": "p1",
+                "steps": [{"seq": 1, "action": "run_command"}],
+            },
+        },
+        reject_error=RuntimeError("reject unavailable"),
+    )
+    spec = {
+        "action": "list_processes",
+        "label": "List Processes",
+        "prompt": "List the running processes on the device {device}.",
+        "timeout": 2,
+    }
+    record = soak.run_one(client, "http://x", "D", 1, spec, SOAK_ARGS)
+    assert record["outcome"] == soak.OUTCOME_FAIL
+    assert record["rejected_plan"]["ok"] is False
+    assert "reject unavailable" in record["rejected_plan"]["error"]
+    assert any("could not reject mismatched plan" in note for note in record["notes"])
+    assert not record["checks"]["approved"]
 
 
 def test_run_one_missing_plan_id_is_failed(soak):
@@ -542,6 +582,8 @@ def test_run_one_missing_plan_id_is_failed(soak):
     record = soak.run_one(client, "http://x", "D", 1, spec, SOAK_ARGS)
     assert record["outcome"] == soak.OUTCOME_FAIL
     assert not record["checks"]["persisted"]
+    assert record["rejected_plan"] is None
+    assert not any(url.endswith("/reject") for url, _ in client.posts)
 
 
 # --- Reporting ---------------------------------------------------------------
@@ -557,6 +599,7 @@ def test_new_record_has_every_field_the_report_reads(soak):
         "prompt",
         "plan_id",
         "plan_status",
+        "rejected_plan",
         "outcome",
         "checks",
         "proposed_actions",

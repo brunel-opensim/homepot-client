@@ -360,12 +360,14 @@ produced no proposal, so `plan_id` was `null`. The risk is real for a future
 provider that proposes the wrong action but still returns a plan.
 
 The API can reject a plan in `pending_approval` even when its target device has
-been removed, so cleanup is safe. Recommended fix: capture `plan_id` before the
-action-match check, reject the pending plan with an explicit reason, and record
-the rejection in the evidence while keeping the command FAIL. Add a unit test
-that asserts the reject call and that no approve or execute call follows.
+been removed, so cleanup is safe. Fixed in the harness: `plan_id` is now captured
+before the action-match check, a mismatched proposal is rejected with an
+explicit reason, and the rejection is recorded in `rejected_plan` while the
+command stays FAIL. Rejection is best effort — a failed reject call is recorded
+in the evidence and never turns into a pass — and no approve or execute call
+follows a mismatch. Unit tests assert both the success and failure paths.
 
-Status: **Open** for the harness cleanup; the eight historical failed plans
+Status: **Done** for the harness cleanup; the eight historical failed plans
 need no further action. Triage evidence is in
 `soak-runs/failed-plans-investigation-20261118T082147Z.json` (git-ignored).
 
