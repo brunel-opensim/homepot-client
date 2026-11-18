@@ -513,6 +513,233 @@ operational path.
 5. **Naming:** `knowledge` vs `informational` vs `general`; and the new
    `trust_mode` label.
 
+## 14.1 Operational query granularity (open design question)
+
+A binary `knowledge` / `diagnostic` split is not always enough. A query such as
+"How many active devices are online?" is operational, but its answer is a simple
+aggregate count derived from the `devices` table. Running the full telemetry
+gate chain (Gate B completeness, freshness, continuity, validity) and then
+capping trust at Mode 2 when the fleet has zero online devices can make a
+correct count look untrustworthy.
+
+### Observed example
+
+Query: "How many active devices are online?"
+
+- Route: `diagnostic` (matches `online` in `OPERATIONAL_PATTERNS`; `active` is
+  not itself a pattern).
+- Gate B connectivity fails when there are no online devices, because the check
+  treats "no online devices" as "fleet telemetry is unavailable". This is
+  distinct from the existing zero-fleet short-circuit, which applies only when
+  there are no active devices at all.
+- Result: Mode 2 / best-effort analytics, with cautionary framing. The observed
+  example carried a trust score around 44%, though the exact score depends on
+  the other gate results. The count itself is a valid fleet observation.
+
+### Terminology to make explicit
+
+The backend already distinguishes these terms, but the prompt does not define
+them. The AI infers meaning only from labels such as `Total Active Devices` and
+`Online Devices`, which is not reliable enough for small models or mixed
+questions.
+
+- **Active**: the device record is enabled and visible in the fleet
+  (`Device.is_active = true`).
+- **Online**: an active device whose latest heartbeat is inside the configured
+  offline threshold, computed by `compute_connectivity()`. Online is a subset
+  of active.
+- **Offline / Unknown**: an active device whose heartbeat is stale or absent.
+- **Healthy**: a separate health-state field (`health_state`), not the same as
+  online.
+
+Before implementation, the fleet-summary context block should define these
+terms and use a clearer label such as
+`Online Devices (active with fresh heartbeat)`. When a question mixes "active"
+and "online" (for example, "How many active devices are online?"), the answer
+should state both counts briefly: "There are N active devices, of which M are
+online."
+
+### Possible differentiation axes
+
+1. **Intent granularity.** Add a third operational class such as `fleet_summary`
+   or `status` for inventory/count questions. This class would remain
+   operational, but would not need telemetry-integrity validation or AI
+   insights.
+2. **Data dependency.** Split Gate B by what the answer actually depends on:
+   - Fleet count / inventory: Gate A + Gate B connectivity only; skip telemetry
+     integrity. Connectivity currently lives inside Gate B, so this would mean
+     treating it as a separately selectable check.
+   - Telemetry trend / health: Gate A + full Gate B + Gate C.
+   - Anomaly analysis: Gate A + full Gate B + Gate C + insights.
+   - Device-specific diagnosis: Gate A + target connectivity + telemetry gates.
+   - Action / proposal: full gates plus policy controls.
+3. **Connectivity semantics.** For fleet-scoped counts, "0 online devices" can
+   be a valid observation rather than a data-integrity failure. For
+   device-scoped queries, an offline target should still fail because that
+   device cannot be diagnosed.
+4. **Trust presentation.** Aggregate/status answers could use a non-cautionary
+   trust presentation, while telemetry-dependent diagnostics keep the current
+   Mode 2 / Mode 3 framing.
+5. **Explicit control.** Extend the UI mode selector or add a `needs` /
+   `scope` field (`inventory` vs `telemetry`) so the technician can state the
+   required evidence instead of relying only on natural-language heuristics.
+
+### Trade-offs
+
+- Skipping gates can hide real data-quality problems. A count of zero online
+  devices may be correct, or it may indicate a heartbeat pipeline failure.
+- Heuristic routing is already conservative and can misclassify. More classes
+  increase that risk, so the default should remain `diagnostic`.
+- Trust scores need a clear meaning: a count can be trusted even when telemetry
+  is stale, but users must be able to see that distinction.
+- Action and proposal paths must remain fully gated.
+- Any new class should be validated with soak tests and trust-score checks
+  before it affects production answers.
+
+### Open questions
+
+- Should "How many active devices are online?" be `knowledge`, `diagnostic`, or
+  a new `fleet_summary` class?
+- Should Gate B's connectivity check pass for fleet-scoped counts when zero
+  devices are online, while telemetry checks still fail independently?
+- Should aggregate counts use a lighter gate set (Gate A + connectivity) and
+  skip completeness, freshness, continuity, and validity?
+- Should the system prompt's cautionary mandate apply only to
+  telemetry-dependent diagnostics?
+- Would an explicit `scope` or `needs` parameter be more reliable than
+  natural-language routing?
+
+Status: **Open** (design discussion only; no code changes).
+
+## 14.2 Implementation plan (proposed, not implemented)
+
+The following sequence keeps each change reviewable and avoids altering action
+or proposal behavior while the new route is being validated.
+
+### Phase 1 — Router classification only
+
+**Files:** `ai/query_router.py`, `backend/tests/test_ai_query_routing.py`
+
+- Add `MODE_FLEET_SUMMARY = "fleet_summary"` and include it in `VALID_MODES`.
+- Add `FLEET_SUMMARY_PATTERNS` ahead of `OPERATIONAL_PATTERNS` for aggregate /
+  inventory questions: `how many`, `count of`, `number of`, `total`,
+  `list devices`, `list sites`, `which devices`, `online devices`,
+  `offline devices`, `healthy devices`, `fleet status`, `device inventory`.
+- Add negative patterns so telemetry questions stay diagnostic: `cpu`,
+  `memory`, `disk`, `latency`, `metric`, `telemetry`, `heartbeat gap`.
+- Keep the full diagnostic pipeline for now; this phase only classifies and
+  echoes `routing.resolved = "fleet_summary"`.
+
+Tests to add:
+- "How many active devices are online?" -> `fleet_summary`.
+- "How many devices are active?" -> `fleet_summary` (active count, not online).
+- "How many devices are online?" -> `fleet_summary` (online count).
+- "How many devices reported high CPU?" -> `diagnostic`.
+- "Why is device X offline?" -> `diagnostic` (device scope wins).
+- "How do I enroll a device?" -> `knowledge`.
+- "Restart device X" -> `diagnostic` / action.
+
+### Phase 2 — Backend gate selection
+
+**Files:** `ai/gates/gate_b.py`, `ai/gates/envelope.py`, `ai/gates/config.py`,
+`backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py`, new
+`backend/tests/test_ai_fleet_summary_gates.py`.
+
+- Extend `DataIntegrityGate` with `telemetry_checks` and
+  `connectivity_required` options.
+- For `fleet_summary`, run Gate A, Gate B connectivity only, and Gate C:
+  - `B.connectivity` is an informational PASS carrying `online_count` and
+    `offline_count` as evidence.
+  - Completeness, freshness, continuity, validity, and the per-device digest
+    are skipped.
+- Skip anomaly detection and failure prediction for `fleet_summary`.
+- Disable agentic / proposal handling for `fleet_summary`:
+  `effective_agentic = request.agentic and routing.resolved == MODE_DIAGNOSTIC`.
+- Leave the zero-fleet short-circuit unchanged: no active devices still means
+  status-only refusal.
+
+Expected result for the example query: Gate A pass, connectivity evidence pass,
+Gate C pass, grounded trust, high score, no cautionary framing, and the answer
+uses the existing `Online Devices` count from `site_context`.
+
+### Phase 3 — Prompt and UI alignment
+
+**Files:** `ai/system_knowledge.py`, `frontend/src/hooks/useAIConversation.js`,
+`frontend/src/components/Dashboard/AskAIWidget.jsx`, frontend tests.
+
+- Apply the "Actionable is no => cautionary" prompt mandate only to
+  non-actionable trust modes, not to a grounded `fleet_summary` answer.
+- Define active, online, offline/unknown, and healthy in the fleet-summary
+  context block, using the terminology in section 14.1.
+- Rename the context line `Online Devices` to
+  `Online Devices (active with fresh heartbeat)` and keep `Total Active
+  Devices` explicitly labelled as the enabled/visible fleet count.
+- Instruct the model that a mixed active/online question should report both
+  counts: "There are N active devices, of which M are online."
+- Add `Fleet summary` to the mode selector alongside Auto, Knowledge, and
+  Diagnostic.
+- Show a `Fleet summary` chip for the new route; keep the existing trust UI for
+  diagnostic answers.
+- Keep `fleet_summary` answers non-actionable at the tool level: no proposal
+  tools, no approval flow, even if trust is grounded.
+
+### Proposal-creation invariant
+
+The current endpoint already enforces the rule that a proposal is created only
+after the full validation envelope passes:
+
+- The canonical envelope runs Gate A -> B -> C -> D -> E, then repeats Gate C
+  against the final context after AI insights are appended.
+- `trust.is_actionable` is true only for `MODE_GROUNDED`, which is returned only
+  when no gate failed. Any gate failure selects a non-actionable mode.
+- When validation is not actionable, the endpoint passes a
+  `proposal_block_reason` into the agent loop; `propose_device_action` and
+  `propose_fleet_action` return without appending an `ActionProposal`.
+- The endpoint persists an `AIActionPlan` only when `trust.is_actionable` and
+  the agent did not fall back to direct generation.
+- Knowledge and direct paths never offer proposal tools. The action registry,
+  RBAC check, target-online check, and honesty guard remain additional
+  downstream controls.
+
+This must remain true for compose-command proposals such as `start_program`,
+`restart_service`, and `run_command`: they are registered actions, but they are
+still only reachable through the fully gated diagnostic/action path.
+
+Because `fleet_summary` skips telemetry gates, it must not be allowed to create
+proposals even if its own trust label is "grounded" for inventory questions.
+Phase 2 must therefore set `effective_agentic = False` for `fleet_summary` and
+pass an unconditional `proposal_block_reason` such as "fleet summary is
+informational; no proposals". Phase 3 must not expose a proposal/action
+control on the fleet-summary route.
+
+### Verification and rollout
+
+- Add an env flag such as `AI_FLEET_SUMMARY_ROUTING` (default off) for phases 2
+  and 3, then enable it after local and server verification.
+- Log `routing.resolved` and the selected gate IDs on every query.
+- Add a status row to `docs/ai-delegation-plan.md` section 17.7 when the work is
+  implemented.
+- Acceptance checks:
+  1. "How many active devices are online?" returns a grounded answer without
+     telemetry gate checks or cautionary framing, and states both the active
+     count and the online count.
+  2. "How many devices are active?" returns the active count, not the online
+     count.
+  3. "How many devices are online?" returns the online count.
+  4. "How many healthy devices are online?" does not conflate `health_state`
+     with connectivity.
+  5. "Why is device X offline?" stays on the full diagnostic path.
+  6. "How many devices have high memory?" stays diagnostic and still runs
+     telemetry gates.
+  7. "How do I enroll a device?" stays on the knowledge path.
+  8. "Restart device X" keeps the existing action / proposal path, including
+     full gates and a registered compose-command action.
+  9. A compose-command request immediately after a fleet-summary answer still
+     routes to the diagnostic/action path; the fleet-summary answer itself
+     creates no proposal.
+
+Status: **Proposed** (no code changes).
+
 ## 15. References
 
 - `backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py` — `/ai/query`

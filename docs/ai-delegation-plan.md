@@ -934,6 +934,34 @@ diagnostic path always provides a session, so it's always sequential.
 **Potential fix:** Use separate sessions per query to enable parallelism.
 Risk: session contention on the shared async session.
 
+### 18.10 Operational query granularity and gate over-validation (open design question)
+
+A count such as "How many active devices are online?" currently routes to
+`diagnostic` because it matches the `online` operational pattern. The plan also
+requires explicit prompt definitions for active, online, offline/unknown, and
+healthy, since the backend distinguishes them but the prompt currently only
+implies the difference through labels. It therefore
+runs the full gate chain, including Gate B telemetry checks. When the fleet has
+no online devices, Gate B connectivity fails and the answer is capped at Mode 2
+/ best-effort analytics with cautionary framing, even though the count itself
+is a valid fleet observation derived from the `devices` table. This differs
+from the existing zero-fleet short-circuit, which applies only when there are
+no active devices at all.
+
+This is tracked as a design question rather than a defect: the validation
+gates are doing exactly what they were asked to do, but the binary
+`knowledge` / `diagnostic` split may be too coarse for aggregate/status
+queries. Candidate directions include a third `fleet_summary` / `status`
+intent, data-dependency-aware gate selection, non-failing connectivity for
+fleet-scoped counts, and an explicit `scope` / `needs` parameter.
+
+Full discussion, trade-offs, and open questions:
+[AI Query Intent Routing § 14.1](ai-query-routing.md#141-operational-query-granularity-open-design-question).
+A proposed implementation sequence is in
+[§ 14.2](ai-query-routing.md#142-implementation-plan-proposed-not-implemented).
+The plan preserves the existing invariant that only fully gated diagnostic /
+action paths can create proposals, including compose-command proposals.
+
 ### Status
 
 All items above are **Open** (not implemented). They are tracked here for
