@@ -801,6 +801,7 @@ roadmap item to its as-built location. Legend: **Done** = implemented,
 | E21 | Cross-session task aggregation | Done | `GET /ai/action-plans/summary`, `AIActionRepository.plan_summary`, UI panel |
 | Q1 | Operational query granularity / `fleet_summary` route | Done | `ai/query_router.py`; `ai/gates/gate_b.py`; `ai/gates/envelope.py`; `AIEndpoint.py`; Dashboard AI UI; `docs/ai-query-routing.md` §14; server acceptance in §14.3 |
 | Q2 | Soak harness rejects action-mismatched proposals | Done | `tools/ai-soak-test.py::run_one`, `_reject_mismatched_plan`; `tools/test-ai-soak-test.py`; `docs/real-device-ai-soak-test.md` |
+| Q3 | Template-grounded action proposals and direct-answer retry | Done | `ai/tools.py::list_compose_templates`; `ai/agent.py::run_agent`; `AIEndpoint.py`; `docs/real-device-ai-soak-test.md` |
 
 **Remaining work:**
 

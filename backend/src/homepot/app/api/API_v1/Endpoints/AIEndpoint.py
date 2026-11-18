@@ -57,6 +57,7 @@ from ai.llm import LLMService  # noqa: E402
 from ai.query_router import (  # noqa: E402
     MODE_FLEET_SUMMARY,
     MODE_KNOWLEDGE,
+    query_has_action_intent,
     resolve_query_mode,
     routing_enabled,
 )
@@ -2108,6 +2109,10 @@ async def _query_ai_impl(
                     execution_timeout=_execution_timeout,
                     total_timeout=_total_timeout,
                     proposal_block_reason=_proposal_block_reason,
+                    require_action_proposal=(
+                        _proposal_block_reason is None
+                        and query_has_action_intent(request.query)
+                    ),
                     on_delta=_stream_on_delta,
                 )
             except AIBusyError:

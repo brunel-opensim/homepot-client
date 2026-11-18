@@ -173,6 +173,19 @@ class RoutingDecision:
     reason: str
 
 
+def query_has_action_intent(query: str) -> bool:
+    """Return True when ``query`` contains an imperative action signal.
+
+    This is the same conservative signal the router uses to keep action requests
+    on the diagnostic path. The API calls it separately because a client may
+    pin ``mode="diagnostic"`` explicitly (as the soak harness does); in that
+    case routing itself reports "explicit override" and would otherwise hide
+    the fact that the query still asks the AI to do something.
+    """
+    text = query or ""
+    return any(pattern.search(text) for pattern in ACTION_PATTERNS)
+
+
 def routing_enabled(raw: Optional[str] = None) -> bool:
     """Return whether heuristic routing is enabled.
 

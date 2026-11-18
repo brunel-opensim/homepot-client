@@ -16,7 +16,9 @@ workspace_root = os.path.abspath(os.path.join(current_dir, "../../"))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
 
+from ai.actions import ActionProposal  # noqa: E402
 from ai.agent import (  # noqa: E402
+    ACTION_PROPOSAL_RETRY_INSTRUCTION,
     AGENT_SYSTEM_PROMPT,
     AgentResult,
     ToolCallRecord,
@@ -28,6 +30,7 @@ from ai.exceptions import AIBusyError  # noqa: E402
 from ai.tools import (  # noqa: E402
     TOOL_FUNCTIONS,
     TOOL_REGISTRY,
+    compose_templates_loaded,
     get_command,
     get_command_history,
     get_config_history,
@@ -37,17 +40,21 @@ from ai.tools import (  # noqa: E402
     get_tool_memory_scope,
     get_tool_proposal_block_reason,
     get_tool_proposal_sink,
+    list_compose_templates,
     reset_tool_memory_scope,
+    reset_tool_template_grounding,
     search_similar_incidents,
     set_tool_memory_scope,
+    set_tool_template_grounding,
+    template_grounding_error,
 )
 
 # ── Tool registry tests ──────────────────────────────────────────────────────
 
 
-def test_tool_registry_has_all_fourteen_tools():
-    """Tool registry should contain exactly 14 tools."""
-    assert len(TOOL_REGISTRY) == 14
+def test_tool_registry_has_all_fifteen_tools():
+    """Tool registry should contain exactly 15 tools."""
+    assert len(TOOL_REGISTRY) == 15
 
 
 def test_tool_registry_names():
@@ -65,6 +72,7 @@ def test_tool_registry_names():
         "find_device",
         "list_devices",
         "get_alerts",
+        "list_compose_templates",
         "propose_device_action",
         "propose_fleet_action",
         "get_action_plan_status",
@@ -85,6 +93,37 @@ def test_all_tools_have_docstrings():
     """Every tool function should have a docstring for Ollama schema generation."""
     for func in TOOL_FUNCTIONS:
         assert func.__doc__, f"{func.__name__} is missing a docstring"
+
+
+def test_list_compose_templates_is_registry_backed():
+    """The tool exposes the shared registry compactly and in full on demand."""
+    token = set_tool_template_grounding(False)
+    try:
+        assert not compose_templates_loaded()
+        compact = list_compose_templates()
+        assert "REGISTRY-BACKED COMPOSE COMMAND TEMPLATES" in compact
+        assert "APPLY_CONFIG" in compact
+        assert "update_config" in compact
+        assert "brightness" in compact and "volume" in compact
+        assert compose_templates_loaded()
+
+        detailed = list_compose_templates("update_config")
+        assert "APPLY_CONFIG" in detailed
+        assert '"volume": 50' in detailed
+        assert '"brightness": 75' in detailed
+    finally:
+        reset_tool_template_grounding(token)
+
+
+def test_template_grounding_blocks_proposals_until_lookup():
+    """Proposal tools refuse to run before the template registry is consulted."""
+    token = set_tool_template_grounding(True)
+    try:
+        assert "list_compose_templates" in (template_grounding_error() or "")
+        list_compose_templates()
+        assert template_grounding_error() is None
+    finally:
+        reset_tool_template_grounding(token)
 
 
 # ── Tool execution tests ─────────────────────────────────────────────────────
@@ -559,6 +598,75 @@ async def test_run_agent_collects_proposals():
     assert get_tool_proposal_sink() is None  # restored after the run
 
 
+@pytest.mark.asyncio
+async def test_action_intent_retry_is_template_grounded():
+    """A direct 'already set' answer gets one correction that consults templates."""
+    mock_llm = MagicMock()
+
+    def _final(content):
+        response = MagicMock()
+        response.message.role = "assistant"
+        response.message.content = content
+        response.message.tool_calls = None
+        return response
+
+    def _tools(name, args):
+        response = MagicMock()
+        response.message.role = "assistant"
+        response.message.content = ""
+        call = MagicMock()
+        call.function.name = name
+        call.function.arguments = args
+        response.message.tool_calls = [call]
+        return response
+
+    mock_llm.generate_with_tools.side_effect = [
+        _final("Already set; no changes needed."),
+        _tools("list_compose_templates", {}),
+        _tools(
+            "propose_device_action",
+            {
+                "action": "update_config",
+                "target_device_id": "POS-001",
+                "rationale": "registry template",
+                "params": '{"config": {"volume": 50, "brightness": 75}}',
+            },
+        ),
+        _final("A tracked update_config proposal is pending approval."),
+    ]
+
+    async def _fake_execute(name, args, allowed=None):
+        if name == "propose_device_action":
+            sink = get_tool_proposal_sink()
+            assert sink is not None
+            sink.append(
+                ActionProposal(
+                    action="update_config",
+                    target_device_id="POS-001",
+                    params={"config": {"volume": 50, "brightness": 75}},
+                    rationale="registry template",
+                )
+            )
+            return "Recorded proposal: update_config on POS-001."
+        return "REGISTRY-BACKED COMPOSE COMMAND TEMPLATES\n- APPLY_CONFIG"
+
+    with patch("ai.agent._execute_tool", new=AsyncMock(side_effect=_fake_execute)):
+        result = await run_agent(
+            query="Set the volume to 50 and brightness to 75 on device POS-001.",
+            context="[RECENT CONFIG CHANGES] volume=50, brightness=75",
+            llm=mock_llm,
+            device_id="POS-001",
+            max_iterations=1,
+            require_action_proposal=True,
+        )
+
+    assert "pending approval" in result.response
+    assert len(result.proposals) == 1
+    names = [call.tool_name for call in result.tools_called]
+    assert names.index("list_compose_templates") < names.index("propose_device_action")
+    assert not compose_templates_loaded()  # grounding state restored after run
+
+
 # ── Endpoint integration tests ───────────────────────────────────────────────
 
 
@@ -574,6 +682,20 @@ def test_agentic_flag_in_request_model():
         source = f.read()
     assert "agentic: bool" in source
     assert "agentic=False" in source or "default=False" in source
+
+
+def test_endpoint_requests_template_grounded_action_proposals():
+    """Imperative queries opt into the retry + template lookup guard."""
+    with open(
+        os.path.join(
+            workspace_root,
+            "backend/src/homepot/app/api/API_v1/Endpoints/AIEndpoint.py",
+        ),
+        encoding="utf-8",
+    ) as f:
+        source = f.read()
+    assert "query_has_action_intent(request.query)" in source
+    assert "require_action_proposal=(" in source
 
 
 # ── Device-side requests vs server telemetry ────────────────────────────────
@@ -592,6 +714,20 @@ def test_system_prompt_sends_device_side_requests_to_the_proposal_layer():
     assert "read the device's system log" in prompt
     assert "system or hardware information" in prompt
     assert "Server telemetry is a summary" in prompt
+
+
+def test_system_prompt_requires_template_grounding_before_proposals():
+    """Named capabilities must come from the registry, not invented shell commands."""
+    prompt = AGENT_SYSTEM_PROMPT
+    assert "Before ANY proposal, call list_compose_templates" in prompt
+    assert "Never invent an action" in prompt
+    assert "already set" in prompt
+    assert "no changes needed" in prompt
+
+    retry = ACTION_PROPOSAL_RETRY_INSTRUCTION
+    assert "list_compose_templates" in retry
+    assert "changes needed" in retry
+    assert "raw run_command" in retry
 
 
 def test_telemetry_tools_say_they_are_not_the_device_log():
