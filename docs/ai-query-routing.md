@@ -750,26 +750,34 @@ control on the fleet-summary route.
      routes to the diagnostic/action path; the fleet-summary answer itself
      creates no proposal.
 
-Status: **Partial**. Phases 1-4 are implemented and
-`AI_FLEET_SUMMARY_ROUTING` is on by default. Server acceptance results in
-§14.3 are pending rollout.
+Status: **Done**. Phases 1-4 are implemented, `AI_FLEET_SUMMARY_ROUTING` is on
+by default, and server acceptance is recorded in §14.3.
 
 ## 14.3 Acceptance results
 
-Server acceptance is run after the phase 4 rollout. Each row records the
-observed `routing.resolved` value, selected gates, and answer behavior.
+Server acceptance ran on 2026-11-18 against API commit `4cfcbaab` with OpenAI
+`gpt-4o`. Each row records the observed `routing.resolved` value, selected
+gates, and answer behavior. Evidence is in git-ignored
+`soak-runs/ai-fleet-summary-acceptance-20261118T021134Z.json`.
 
 | # | Check | Result |
 |---|---|---|
-| 1 | "How many active devices are online?" -> grounded, both counts stated | Pending rollout |
-| 2 | "How many devices are active?" -> active count, not online count | Pending rollout |
-| 3 | "How many devices are online?" -> online count | Pending rollout |
-| 4 | "How many healthy devices are online?" -> health and connectivity distinct | Pending rollout |
-| 5 | "Why is device X offline?" -> diagnostic, full gates | Pending rollout |
-| 6 | "How many devices have high memory?" -> diagnostic, telemetry gates | Pending rollout |
-| 7 | "How do I enroll a device?" -> knowledge | Pending rollout |
-| 8 | "Restart device X" -> action path, full gates, registered action | Pending rollout |
-| 9 | Compose-command request after a fleet-summary answer -> action path; fleet-summary answer creates no proposal | Pending rollout |
+| 1 | "How many active devices are online?" -> grounded, both counts stated | Pass — `fleet_summary`, gates A/B/C, answer "3 active devices, of which 0 are online" |
+| 2 | "How many devices are active?" -> active count, not online count | Pass — `fleet_summary`, answer "3 active devices" only |
+| 3 | "How many devices are online?" -> online count | Pass — `fleet_summary`, answer reports 0 online |
+| 4 | "How many healthy devices are online?" -> health and connectivity distinct | Pass — answer separates "all 3 healthy" from "none online" |
+| 5 | "Why is device X offline?" -> diagnostic, full gates | Pass — `diagnostic`; telemetry Gate B checks ran and failed on the offline target, short-circuiting later gates as designed |
+| 6 | "How many devices have high memory?" -> diagnostic, telemetry gates | Pass — `diagnostic`; all telemetry Gate B checks ran and the answer withheld an unsupported count |
+| 7 | "How do I enroll a device?" -> knowledge | Pass — `knowledge`, informational trust, no gates |
+| 8 | "Restart device X" -> action path, full gates, registered action | Pass with safety block — `diagnostic` action route, `propose_device_action` called; no proposal because the target is offline and Gate B failed |
+| 9 | Compose-command request after a fleet-summary answer -> action path; fleet-summary answer creates no proposal | Pass — agentic fleet-summary answer created no proposal; compose request routed `diagnostic` and called `propose_device_action`, which was blocked by the same offline target |
+
+Device-scoped proposals (#8 and #9) could not be persisted because
+`DEVICE-HSZK-T24Y-TSCX` was offline during this run. That is the expected
+fail-closed behavior, not a routing regression; proposal creation and execution
+against an online target remain covered by the 24-command soak in
+[Real-device AI soak test](real-device-ai-soak-test.md). The fleet-summary
+answer in #9 was sent with `agentic=true` and still produced no proposal.
 
 ## 15. References
 
