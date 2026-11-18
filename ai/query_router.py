@@ -1,8 +1,14 @@
 """Intent router for AI queries (see docs/ai-query-routing.md).
 
-Classifies an incoming query into a ``knowledge`` or ``diagnostic`` path so
-informational / how-to questions can be answered from documentation without
-paying the device-data validation pipeline (fleet scans, gates A-E, insights).
+Classifies an incoming query into a ``knowledge``, ``fleet_summary`` or
+``diagnostic`` path so informational / how-to questions can be answered from
+documentation without paying the device-data validation pipeline (fleet scans,
+gates A-E, insights).
+
+``fleet_summary`` is an opt-in classification for aggregate inventory questions
+("how many devices are online?", "list sites"). It is deliberately flag-gated:
+phase 1 classifies only, while the endpoint still follows the existing
+diagnostic pipeline.
 
 The router is deliberately **deterministic and LLM-free** (keeps the CPU-only
 inference host fast) and **conservative**: anything ambiguous falls back to
@@ -10,12 +16,15 @@ inference host fast) and **conservative**: anything ambiguous falls back to
 
 Resolution order (first match wins):
 
-1. explicit override (``requested`` = ``knowledge`` / ``diagnostic``);
+1. explicit override (``requested`` = ``knowledge`` / ``fleet_summary`` /
+   ``diagnostic``);
 2. ``action`` signal (imperative capability verb) -> diagnostic/agentic path;
 3. a concrete ``device_id`` -> diagnostic (the query is about that device);
-4. operational vocabulary (status/alerts/anomaly/...) -> diagnostic;
-5. how-to / definition signal -> knowledge;
-6. otherwise -> diagnostic.
+4. aggregate/inventory signal -> fleet_summary (when the opt-in flag is on and
+   no telemetry signal is present);
+5. operational vocabulary (status/alerts/anomaly/...) -> diagnostic;
+6. how-to / definition signal -> knowledge;
+7. otherwise -> diagnostic.
 
 The pattern lists below are the single, tunable source of truth for the
 heuristics.
@@ -30,12 +39,16 @@ from typing import Optional, Sequence
 
 MODE_AUTO = "auto"
 MODE_KNOWLEDGE = "knowledge"
+MODE_FLEET_SUMMARY = "fleet_summary"
 MODE_DIAGNOSTIC = "diagnostic"
 
-VALID_MODES = frozenset({MODE_AUTO, MODE_KNOWLEDGE, MODE_DIAGNOSTIC})
+VALID_MODES = frozenset(
+    {MODE_AUTO, MODE_KNOWLEDGE, MODE_FLEET_SUMMARY, MODE_DIAGNOSTIC}
+)
 
-# Values of AI_QUERY_ROUTING that disable heuristic routing (every query then
-# takes the diagnostic path, preserving pre-routing behaviour).
+# Values that disable heuristic routing (every query then takes the diagnostic
+# path, preserving pre-routing behaviour). The same vocabulary is reused for
+# the fleet-summary opt-in flag.
 _ROUTING_OFF_VALUES = frozenset({"off", "0", "false", "no", "disabled", "none"})
 
 # ---------------------------------------------------------------------------
@@ -74,6 +87,53 @@ ACTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     )
 )
 
+# Aggregate / inventory vocabulary that can be answered from the devices table
+# without telemetry validation. Kept behind AI_FLEET_SUMMARY_ROUTING (default
+# off) until the backend gate-selection phase lands.
+FLEET_SUMMARY_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\bhow many\b",
+        r"\bcount of\b",
+        r"\bnumber of\b",
+        r"\btotal\b",
+        r"\blist (all )?(devices|sites)\b",
+        r"\bwhich devices\b",
+        r"\bonline devices\b",
+        r"\boffline devices\b",
+        r"\bactive devices\b",
+        r"\bhealthy devices\b",
+        r"\bdevice inventory\b",
+        r"\bfleet (status|overview|inventory|summary)\b",
+        r"\bstatus of (the )?fleet\b",
+    )
+)
+
+# Telemetry-dependent vocabulary. A count/list question containing one of these
+# is not an inventory question: its answer needs the full Gate B telemetry
+# checks, so it stays on the diagnostic path even when fleet summaries are on.
+FLEET_SUMMARY_TELEMETRY_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"\bcpu\b",
+        r"\bmemory\b",
+        r"\bdisk\b",
+        r"\blatenc",
+        r"\bmetric",
+        r"\btelemetry\b",
+        r"\bheartbeat",
+        r"\bstale\b",
+        r"\buptime\b",
+        r"\bperformance\b",
+        r"\balerts?\b",
+        r"\banomal",
+        r"\berrors?\b",
+        r"\bdenied\b",
+        r"\bfailed\b",
+        r"\bhealth\b",
+    )
+)
+
 # Operational vocabulary that always means "diagnostic": a question about live
 # or historical state is never answerable from documentation. This keeps broad
 # knowledge interrogatives ("what is ...") from capturing status questions such
@@ -108,7 +168,7 @@ class RoutingDecision:
     """Outcome of routing a query: what was asked for vs. what was resolved."""
 
     requested: str
-    resolved: str  # MODE_KNOWLEDGE | MODE_DIAGNOSTIC
+    resolved: str  # MODE_KNOWLEDGE | MODE_FLEET_SUMMARY | MODE_DIAGNOSTIC
     reason: str
 
 
@@ -119,6 +179,21 @@ def routing_enabled(raw: Optional[str] = None) -> bool:
     disables routing so every query takes the diagnostic path.
     """
     value = raw if raw is not None else os.environ.get("AI_QUERY_ROUTING", "heuristics")
+    return (value or "").strip().lower() not in _ROUTING_OFF_VALUES
+
+
+def fleet_summary_routing_enabled(raw: Optional[str] = None) -> bool:
+    """Return whether the opt-in `fleet_summary` classification is enabled.
+
+    Reads ``AI_FLEET_SUMMARY_ROUTING`` (default ``off``). The same off-values as
+    ``AI_QUERY_ROUTING`` disable it; any other value enables the classification.
+    The main ``AI_QUERY_ROUTING`` flag still takes precedence: when heuristic
+    routing is disabled, every query remains diagnostic.
+    """
+    default = "off"
+    value = (
+        raw if raw is not None else os.environ.get("AI_FLEET_SUMMARY_ROUTING", default)
+    )
     return (value or "").strip().lower() not in _ROUTING_OFF_VALUES
 
 
@@ -139,19 +214,23 @@ def resolve_query_mode(
     device_id: Optional[str] = None,
     history: Optional[Sequence[object]] = None,
     enabled: Optional[bool] = None,
+    fleet_summary_enabled: Optional[bool] = None,
 ) -> RoutingDecision:
-    """Resolve the query path (``knowledge`` or ``diagnostic``).
+    """Resolve the query path (``knowledge``, ``fleet_summary`` or ``diagnostic``).
 
     Args:
         query: The user's raw question.
-        requested: Explicit override (``auto`` / ``knowledge`` / ``diagnostic``).
-            Unknown values fall back to ``auto``.
+        requested: Explicit override (``auto`` / ``knowledge`` /
+            ``fleet_summary`` / ``diagnostic``). Unknown values fall back to
+            ``auto``.
         device_id: Optional device scope; a concrete device means the user is
             asking about that device, so it routes to ``diagnostic``.
         history: Optional conversation history. Reserved for follow-up
             continuity (not yet used in v1 -- ambiguous follow-ups fall back to
             ``diagnostic``).
         enabled: Override for the ``AI_QUERY_ROUTING`` flag (mainly for tests).
+        fleet_summary_enabled: Override for ``AI_FLEET_SUMMARY_ROUTING``
+            (mainly for tests).
 
     Returns:
         A :class:`RoutingDecision` with the requested mode, the resolved mode
@@ -165,6 +244,10 @@ def resolve_query_mode(
     if requested_norm == MODE_KNOWLEDGE:
         return RoutingDecision(
             requested_norm, MODE_KNOWLEDGE, "explicit override: knowledge"
+        )
+    if requested_norm == MODE_FLEET_SUMMARY:
+        return RoutingDecision(
+            requested_norm, MODE_FLEET_SUMMARY, "explicit override: fleet_summary"
         )
     if requested_norm == MODE_DIAGNOSTIC:
         return RoutingDecision(
@@ -190,7 +273,23 @@ def resolve_query_mode(
     if device_id:
         return RoutingDecision(requested_norm, MODE_DIAGNOSTIC, "device_id present")
 
-    # 4. Operational vocabulary.
+    # 4. Aggregate inventory query (opt-in). Telemetry words win first: a
+    # count that depends on metrics is still a full diagnostic question.
+    fleet_enabled = (
+        fleet_summary_enabled
+        if fleet_summary_enabled is not None
+        else fleet_summary_routing_enabled()
+    )
+    if fleet_enabled and not _first_match(FLEET_SUMMARY_TELEMETRY_PATTERNS, text):
+        match = _first_match(FLEET_SUMMARY_PATTERNS, text)
+        if match:
+            return RoutingDecision(
+                requested_norm,
+                MODE_FLEET_SUMMARY,
+                f"fleet summary signal: '{match.group(0).lower()}'",
+            )
+
+    # 5. Operational vocabulary.
     for pattern in OPERATIONAL_PATTERNS:
         match = pattern.search(query)
         if match:
@@ -200,7 +299,7 @@ def resolve_query_mode(
                 f"operational signal: '{match.group(0).lower()}'",
             )
 
-    # 5. How-to / definition.
+    # 6. How-to / definition.
     for pattern in KNOWLEDGE_PATTERNS:
         match = pattern.search(query)
         if match:
@@ -210,5 +309,5 @@ def resolve_query_mode(
                 f"how-to signal: '{match.group(0).lower()}'",
             )
 
-    # 6. Conservative default.
+    # 7. Conservative default.
     return RoutingDecision(requested_norm, MODE_DIAGNOSTIC, "default")
