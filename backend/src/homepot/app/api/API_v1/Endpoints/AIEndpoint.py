@@ -1742,6 +1742,7 @@ async def _query_ai_impl(
             # (sites, alerts, push stats, memory) as observable status, never
             # as a recommendation.
             zero_fleet = not all_active_devices
+            selected_gate_ids: list[str] = []
             if zero_fleet:
                 trust = EnvelopeResult(
                     gate_results=[],
@@ -1752,9 +1753,21 @@ async def _query_ai_impl(
             elif routing.resolved == MODE_FLEET_SUMMARY:
                 envelope = build_fleet_summary_envelope_from_config()
                 trust = await envelope.run(gate_context)
+                selected_gate_ids = [
+                    g.gate_id for g in getattr(envelope, "gates", [])
+                ] or [g.gate_id for g in trust.gate_results]
             else:
                 envelope = build_envelope_from_config()
                 trust = await envelope.run(gate_context)
+                selected_gate_ids = [
+                    g.gate_id for g in getattr(envelope, "gates", [])
+                ] or [g.gate_id for g in trust.gate_results]
+
+            logger.info(
+                "AI query gates | routing=%s | gates=%s",
+                routing.resolved,
+                ",".join(selected_gate_ids) if selected_gate_ids else "none",
+            )
 
             await _publish_investigation_event(
                 request,

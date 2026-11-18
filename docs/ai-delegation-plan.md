@@ -799,6 +799,7 @@ roadmap item to its as-built location. Legend: **Done** = implemented,
 | E19 | Parallel tool calls | Done | `ai/agent.py` (`asyncio.gather`) |
 | E20 | Extended timeout / deeper iterations | Done | Configurable via `ai/config.yaml` `agent:` and `run_agent` params (Phase E #756); defaults remain 5 iterations / 60 s |
 | E21 | Cross-session task aggregation | Done | `GET /ai/action-plans/summary`, `AIActionRepository.plan_summary`, UI panel |
+| Q1 | Operational query granularity / `fleet_summary` route | Partial | `ai/query_router.py`; `ai/gates/gate_b.py`; `ai/gates/envelope.py`; `AIEndpoint.py`; Dashboard AI UI; `docs/ai-query-routing.md` §14. Server acceptance pending |
 
 **Remaining work:**
 
@@ -957,15 +958,21 @@ fleet-scoped counts, and an explicit `scope` / `needs` parameter.
 
 Full discussion, trade-offs, and open questions:
 [AI Query Intent Routing § 14.1](ai-query-routing.md#141-operational-query-granularity-open-design-question).
-A proposed implementation sequence is in
-[§ 14.2](ai-query-routing.md#142-implementation-plan-proposed-not-implemented).
+The implementation sequence is in
+[§ 14.2](ai-query-routing.md#142-implementation-plan-implemented-in-phases-1-4).
 The plan preserves the existing invariant that only fully gated diagnostic /
 action paths can create proposals, including compose-command proposals.
 
+**Status for §18.10:** **Partial**. The `fleet_summary` route, reduced gate
+chain, prompt/UI labels and `AI_FLEET_SUMMARY_ROUTING` default-on change are
+implemented; server acceptance is recorded in
+[`docs/ai-query-routing.md` §14.3](ai-query-routing.md#143-acceptance-results).
+
 ### Status
 
-All items above are **Open** (not implemented). They are tracked here for
-future work. None block the soak test or current functionality.
+All items above remain **Open** except §18.10, which is **Partial** as noted.
+They are tracked here for future work. None block the soak test or current
+functionality.
 - [RBAC Hardening Plan](rbac-hardening-plan.md) — role model and the
   "every privileged action records its actor" requirement.
 - [Audit & Compliance](audit-compliance.md) — audit event model.

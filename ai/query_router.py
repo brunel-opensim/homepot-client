@@ -88,8 +88,9 @@ ACTION_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
 )
 
 # Aggregate / inventory vocabulary that can be answered from the devices table
-# without telemetry validation. Kept behind AI_FLEET_SUMMARY_ROUTING (default
-# off) until the backend gate-selection phase lands.
+# without telemetry validation. Enabled by default via
+# AI_FLEET_SUMMARY_ROUTING; set that flag to an off-value to restore the
+# original binary knowledge/diagnostic split.
 FLEET_SUMMARY_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     re.compile(p, re.IGNORECASE)
     for p in (
@@ -183,14 +184,14 @@ def routing_enabled(raw: Optional[str] = None) -> bool:
 
 
 def fleet_summary_routing_enabled(raw: Optional[str] = None) -> bool:
-    """Return whether the opt-in `fleet_summary` classification is enabled.
+    """Return whether `fleet_summary` classification is enabled.
 
-    Reads ``AI_FLEET_SUMMARY_ROUTING`` (default ``off``). The same off-values as
+    Reads ``AI_FLEET_SUMMARY_ROUTING`` (default ``on``). The same off-values as
     ``AI_QUERY_ROUTING`` disable it; any other value enables the classification.
     The main ``AI_QUERY_ROUTING`` flag still takes precedence: when heuristic
     routing is disabled, every query remains diagnostic.
     """
-    default = "off"
+    default = "on"
     value = (
         raw if raw is not None else os.environ.get("AI_FLEET_SUMMARY_ROUTING", default)
     )

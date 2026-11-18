@@ -1,6 +1,7 @@
 """Tests for the reduced gate path used by fleet-summary answers."""
 
 from contextlib import ExitStack
+import logging
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -174,15 +175,20 @@ def _nonzero_fleet_patches(AIEndpoint, ContextBuilder):
 
 def _fake_envelope():
     """Return a reduced-envelope stand-in with a passing post-insight Gate C."""
-    gate_c = MagicMock()
-    gate_c.gate_id = "C"
-    gate_c.run = AsyncMock(
-        return_value=GateResult(
-            gate_id="C", name="Context Readiness", status=GateStatus.PASS, checks=[]
+
+    def _gate(gate_id: str):
+        gate = MagicMock()
+        gate.gate_id = gate_id
+        gate.run = AsyncMock(
+            return_value=GateResult(
+                gate_id=gate_id, name=gate_id, status=GateStatus.PASS, checks=[]
+            )
         )
-    )
+        return gate
+
+    gate_a, gate_b, gate_c = _gate("A"), _gate("B"), _gate("C")
     envelope = MagicMock()
-    envelope.gates = [gate_c]
+    envelope.gates = [gate_a, gate_b, gate_c]
     envelope.run = AsyncMock(
         return_value=EnvelopeResult(
             gate_results=[],
@@ -195,7 +201,7 @@ def _fake_envelope():
 
 
 @pytest.mark.asyncio
-async def test_fleet_summary_endpoint_uses_reduced_path_and_no_proposals():
+async def test_fleet_summary_endpoint_uses_reduced_path_and_no_proposals(caplog):
     """Fleet summaries skip telemetry insights and all proposal tools."""
     from homepot.app.api.API_v1.Endpoints import AIEndpoint
 
@@ -239,11 +245,13 @@ async def test_fleet_summary_endpoint_uses_reduced_path_and_no_proposals():
             mode=MODE_FLEET_SUMMARY,
             agentic=True,
         )
-        response = await AIEndpoint.query_ai(
-            request, {"email": "admin@test", "role": "Admin", "user_id": 1}
-        )
+        with caplog.at_level(logging.INFO, logger=AIEndpoint.logger.name):
+            response = await AIEndpoint.query_ai(
+                request, {"email": "admin@test", "role": "Admin", "user_id": 1}
+            )
 
     assert response["routing"]["resolved"] == MODE_FLEET_SUMMARY
+    assert "AI query gates | routing=fleet_summary | gates=A,B,C" in caplog.text
     assert response["trust"]["trust_mode"] == MODE_GROUNDED.id
     context = llm.generate_response.call_args.kwargs["context"]
     assert "Active = device record is enabled and visible" in context

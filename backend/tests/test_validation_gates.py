@@ -276,15 +276,30 @@ async def test_gate_a_fails_without_session():
 
 
 @pytest.mark.asyncio
-async def test_gate_b_fails_when_no_telemetry_present():
-    """Test that Gate B fails when there is no telemetry in the lookback window."""
-    from homepot.database import get_database_service
+async def test_gate_b_fails_when_no_telemetry_present(tmp_path):
+    """Test that Gate B fails when there is no telemetry in the lookback window.
 
-    db_service = await get_database_service()
-    async with db_service.get_session() as session:
-        result = await DataIntegrityGate().run(
-            GateContext(session=session, window_seconds=3600)
-        )
+    Uses a per-test SQLite database: under xdist a worker can otherwise run
+    this test after another test has seeded fresh telemetry in the shared test
+    database, which makes the "empty fleet" premise false.
+    """
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+    from homepot.app.models.AnalyticsModel import DeviceMetrics  # noqa: F401
+    from homepot.models import Base, HealthCheck  # noqa: F401
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'gate-b-empty.db'}")
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with AsyncSession(engine) as session:
+            result = await DataIntegrityGate().run(
+                GateContext(session=session, window_seconds=3600)
+            )
+    finally:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await engine.dispose()
 
     assert result.status == GateStatus.FAIL
     check_ids = {c.check_id for c in result.checks}
