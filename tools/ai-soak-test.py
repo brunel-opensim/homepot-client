@@ -7,7 +7,7 @@ delegation loop an operator otherwise runs by hand:
 
 1. ask the AI in natural language to do something on the device,
 2. confirm the AI proposed the *expected* action (via the ``propose_device_action``
-   tool and the ``ACTION_REGISTRY`` allowlist),
+   tool and the ``ACTION_REGISTRY`` allowlist); a persisted mismatch is rejected,
 3. approve the plan,
 4. release any per-step approval gates (T3 actions),
 5. execute the plan and wait for a terminal outcome,
@@ -383,6 +383,18 @@ def approve_plan(client: httpx.Client, base_url: str, plan_id: str) -> Dict[str,
     """Approve a pending plan (does not execute)."""
     r = client.post(
         f"{base_url}/ai/action-plans/{plan_id}/approve", json={"reason": "soak test"}
+    )
+    r.raise_for_status()
+    payload = r.json()
+    return payload if isinstance(payload, dict) else {}
+
+
+def reject_plan(
+    client: httpx.Client, base_url: str, plan_id: str, reason: str
+) -> Dict[str, Any]:
+    """Reject a pending plan that the soak harness will not execute."""
+    r = client.post(
+        f"{base_url}/ai/action-plans/{plan_id}/reject", json={"reason": reason}
     )
     r.raise_for_status()
     payload = r.json()
@@ -830,6 +842,7 @@ def new_record(index: int, action: str, label: str, prompt: str) -> Dict[str, An
         "prompt": prompt,
         "plan_id": None,
         "plan_status": None,
+        "rejected_plan": None,
         "outcome": OUTCOME_FAIL,
         "checks": {
             "proposed": False,
@@ -936,6 +949,45 @@ def query_proposal(
         return {}
     record["checks"]["proposed"] = True
     return proposal
+
+
+def _reject_mismatched_plan(
+    client: httpx.Client,
+    base_url: str,
+    record: Dict[str, Any],
+    plan_id: str,
+    expected_action: str,
+    proposed_actions: List[str],
+) -> None:
+    """Reject a persisted proposal whose action set does not match the spec.
+
+    Cleanup is best effort: the command is already a FAIL and must never be
+    approved or executed. The outcome of the rejection is kept in the evidence
+    so an orphaned plan can still be found by hand if the API call fails.
+    """
+    if not plan_id:
+        return
+
+    actual = ", ".join(proposed_actions) or "none"
+    reason = (
+        f"soak harness rejected proposal for '{expected_action}': "
+        f"AI proposed {actual}"
+    )
+    try:
+        reject_plan(client, base_url, plan_id, reason)
+        record["rejected_plan"] = {"ok": True, "reason": reason}
+        record["notes"].append(f"rejected mismatched plan {plan_id}")
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        record["rejected_plan"] = {"ok": False, "status": status, "reason": reason}
+        record["notes"].append(f"could not reject mismatched plan {plan_id} ({status})")
+    except Exception as exc:  # noqa: BLE001 - recorded, never raised
+        record["rejected_plan"] = {
+            "ok": False,
+            "error": str(exc),
+            "reason": reason,
+        }
+        record["notes"].append(f"could not reject mismatched plan {plan_id}: {exc}")
 
 
 def _approve_plan(
@@ -1135,6 +1187,10 @@ def run_one(
     if not proposal:
         return record
 
+    plan_id = str(proposal.get("plan_id") or "")
+    record["plan_id"] = plan_id
+    record["checks"]["persisted"] = bool(plan_id)
+
     record["checks"]["action_match"] = action in record["proposed_actions"]
     if not record["checks"]["action_match"]:
         record["outcome"] = OUTCOME_FAIL
@@ -1142,11 +1198,16 @@ def run_one(
             f"AI proposed {record['proposed_actions']} but not the expected "
             f"'{action}'"
         )
+        _reject_mismatched_plan(
+            client,
+            base_url,
+            record,
+            plan_id,
+            action,
+            record["proposed_actions"],
+        )
         return record
 
-    plan_id = str(proposal.get("plan_id") or "")
-    record["plan_id"] = plan_id
-    record["checks"]["persisted"] = bool(plan_id)
     if not plan_id:
         record["outcome"] = OUTCOME_FAIL
         record["notes"].append("proposal had no plan_id")
@@ -1278,6 +1339,8 @@ def print_failure_detail(record: Dict[str, Any], device_id: str) -> None:
     print(f"    prompt     : {record['prompt']}")
     print(f"    plan_id    : {record.get('plan_id') or '(never created)'}")
     print(f"    plan status: {record.get('plan_status') or '-'}")
+    if record.get("rejected_plan") is not None:
+        print(f"    rejection  : {json.dumps(record['rejected_plan'])[:300]}")
     print(f"    proposed   : {proposed}")
     if record.get("gate_failure"):
         print(f"    gate       : {record['gate_failure']} (not actionable)")
