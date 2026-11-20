@@ -181,6 +181,7 @@ class AIActionRepository:
         include_archived: bool = False,
         os_family: Optional[str] = None,
         paired_only: bool = False,
+        recent_status: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Aggregate plan counts by status for cross-session task overview.
 
@@ -190,6 +191,11 @@ class AIActionRepository:
         reflects the live fleet. ``needs_approval`` stays unscoped by lifecycle
         so an operator still sees a pending decision on a device they are about
         to unpair.
+
+        ``recent_status`` limits the ``recent`` list to plans in that status
+        while keeping ``total``/``by_status`` over the full (scoped) window, so
+        a status filter shows the latest matching tasks instead of a client-side
+        slice of the global top-N.
         """
         from datetime import datetime, timedelta
 
@@ -288,17 +294,55 @@ class AIActionRepository:
             status_val = str(plan.status)
             by_status[status_val] = by_status.get(status_val, 0) + 1
 
+        def _plan_activity_time(plan: AIActionPlan) -> datetime:
+            """Return the best timestamp for when a plan last meaningfully changed.
+
+            Terminal plans are ordered by when they settled (outcome recorded or
+            last step completed) so a just-succeeded plan surfaces immediately,
+            rather than by when it was originally proposed.
+            """
+            outcome = getattr(plan, "outcome", None)
+            recorded_at = getattr(outcome, "recorded_at", None) if outcome else None
+            if isinstance(recorded_at, datetime):
+                return recorded_at
+            step_times = [
+                completed_at
+                for completed_at in (
+                    getattr(step, "completed_at", None) for step in (plan.steps or [])
+                )
+                if isinstance(completed_at, datetime)
+            ]
+            if step_times:
+                return max(step_times)
+            updated_at = getattr(plan, "updated_at", None)
+            if isinstance(updated_at, datetime):
+                return updated_at
+            created_at = getattr(plan, "created_at", None)
+            if isinstance(created_at, datetime):
+                return created_at
+            return datetime.min
+
+        recent_source = counted
+        if recent_status is not None:
+            recent_source = [p for p in counted if str(p.status) == recent_status]
+
         recent = [
             {
                 "plan_id": p.plan_id,
                 "status": p.status,
                 "risk_tier": p.risk_tier,
                 "created_at": p.created_at.isoformat() if p.created_at else None,
+                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+                "settled_at": (
+                    _plan_activity_time(p).isoformat()
+                    if _plan_activity_time(p) != datetime.min
+                    else None
+                ),
                 "created_by": p.created_by,
                 "step_count": len(p.steps),
                 "target_device_id": (p.steps[0].target_device_id if p.steps else None),
             }
-            for p in sorted(counted, key=lambda x: x.created_at, reverse=True)[:10]
+            for p in sorted(recent_source, key=_plan_activity_time, reverse=True)[:10]
         ]
 
         return {

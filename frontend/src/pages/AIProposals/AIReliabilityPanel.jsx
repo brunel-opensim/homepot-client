@@ -37,67 +37,71 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
   const fetchRequestIdRef = useRef(0);
   const initialLoadRef = useRef(true);
 
-  const fetchAll = useCallback(async () => {
-    const requestId = ++fetchRequestIdRef.current;
-    try {
-      if (initialLoadRef.current) setLoading(true);
-      const [summaryData, reliabilityData, autonomyData] = await Promise.allSettled([
-        api.ai.getPlanSummary(30, null, selectedOs || null),
-        api.ai.getReliability(30, null, selectedOs || null),
-        api.ai.getAutonomy(selectedOs || null),
-      ]);
+  const fetchAll = useCallback(
+    async (statusOverride) => {
+      const requestId = ++fetchRequestIdRef.current;
+      const effectiveStatus = statusOverride !== undefined ? statusOverride : statusFilter;
+      try {
+        if (initialLoadRef.current) setLoading(true);
+        const [summaryData, reliabilityData, autonomyData] = await Promise.allSettled([
+          api.ai.getPlanSummary(30, null, selectedOs || null, effectiveStatus || null),
+          api.ai.getReliability(30, null, selectedOs || null),
+          api.ai.getAutonomy(selectedOs || null),
+        ]);
 
-      // A newer refresh (SSE burst or badge click) supersedes this one.
-      if (requestId !== fetchRequestIdRef.current) return;
+        // A newer refresh (SSE burst or badge click) supersedes this one.
+        if (requestId !== fetchRequestIdRef.current) return;
 
-      const nextErrors = {};
+        const nextErrors = {};
 
-      if (summaryData.status === 'fulfilled') {
-        setSummary(summaryData.value);
-      } else {
-        nextErrors.summary = apiHelpers.formatError(summaryData.reason);
-      }
-
-      if (reliabilityData.status === 'fulfilled') {
-        // The backend reports internal failures as HTTP 200 with
-        // { status: 'error', message } rather than a rejected request.
-        if (reliabilityData.value?.status === 'error') {
-          nextErrors.reliability =
-            reliabilityData.value?.message || 'Reliability metrics unavailable.';
+        if (summaryData.status === 'fulfilled') {
+          setSummary(summaryData.value);
         } else {
-          setReliability(reliabilityData.value);
+          nextErrors.summary = apiHelpers.formatError(summaryData.reason);
         }
-      } else {
-        nextErrors.reliability = apiHelpers.formatError(reliabilityData.reason);
-      }
 
-      if (autonomyData.status === 'fulfilled') {
-        setAutonomy(autonomyData.value);
-      } else {
-        nextErrors.autonomy = apiHelpers.formatError(autonomyData.reason);
-      }
-
-      if (typeof api.ai.getCalibration === 'function') {
-        try {
-          const calibrationData = await api.ai.getCalibration(30, selectedOs || null);
-          if (requestId !== fetchRequestIdRef.current) return;
-          if (calibrationData?.status !== 'error') {
-            setCalibration(calibrationData);
+        if (reliabilityData.status === 'fulfilled') {
+          // The backend reports internal failures as HTTP 200 with
+          // { status: 'error', message } rather than a rejected request.
+          if (reliabilityData.value?.status === 'error') {
+            nextErrors.reliability =
+              reliabilityData.value?.message || 'Reliability metrics unavailable.';
+          } else {
+            setReliability(reliabilityData.value);
           }
-        } catch (err) {
-          nextErrors.calibration = apiHelpers.formatError(err);
+        } else {
+          nextErrors.reliability = apiHelpers.formatError(reliabilityData.reason);
+        }
+
+        if (autonomyData.status === 'fulfilled') {
+          setAutonomy(autonomyData.value);
+        } else {
+          nextErrors.autonomy = apiHelpers.formatError(autonomyData.reason);
+        }
+
+        if (typeof api.ai.getCalibration === 'function') {
+          try {
+            const calibrationData = await api.ai.getCalibration(30, selectedOs || null);
+            if (requestId !== fetchRequestIdRef.current) return;
+            if (calibrationData?.status !== 'error') {
+              setCalibration(calibrationData);
+            }
+          } catch (err) {
+            nextErrors.calibration = apiHelpers.formatError(err);
+          }
+        }
+
+        if (requestId !== fetchRequestIdRef.current) return;
+        setErrors(nextErrors);
+      } finally {
+        if (requestId === fetchRequestIdRef.current) {
+          setLoading(false);
+          initialLoadRef.current = false;
         }
       }
-
-      if (requestId !== fetchRequestIdRef.current) return;
-      setErrors(nextErrors);
-    } finally {
-      if (requestId === fetchRequestIdRef.current) {
-        setLoading(false);
-        initialLoadRef.current = false;
-      }
-    }
-  }, [selectedOs]);
+    },
+    [selectedOs, statusFilter]
+  );
 
   useEffect(() => {
     fetchAll();
@@ -119,10 +123,10 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
 
   const actionEntries = Object.entries(reliability?.action_types || {});
 
-  // Filter recent plans by the selected status (from the clickable badges).
-  const recentPlans = (summary?.recent || []).filter((plan) =>
-    statusFilter ? plan.status === statusFilter : true
-  );
+  // The summary returns recent plans already scoped to the selected status
+  // (when any) and ordered by when they last settled, so no client-side
+  // filtering is needed here.
+  const recentPlans = summary?.recent || [];
 
   if (loading) {
     return (
@@ -208,13 +212,13 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
                     key={status}
                     type="button"
                     onClick={() => {
+                      const nextStatus = statusFilter === status ? '' : status;
                       if (onStatusFilterChange) {
-                        onStatusFilterChange(statusFilter === status ? '' : status);
+                        onStatusFilterChange(nextStatus);
                       }
-                      // The badge is a freshness trigger too: the summary is
-                      // only refreshed on SSE events otherwise, so the rows
-                      // for a newly selected status can lag behind its count.
-                      fetchAll();
+                      // Refresh immediately with the selected status so the
+                      // recent list reflects that status, not the previous one.
+                      fetchAll(nextStatus);
                     }}
                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
                       statusFilter === status
@@ -251,7 +255,10 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
                         by {plan.created_by || 'unknown'}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {plan.created_at ? new Date(plan.created_at).toLocaleString() : '-'}
+                        {(() => {
+                          const at = plan.settled_at || plan.updated_at || plan.created_at;
+                          return at ? new Date(at).toLocaleString() : '-';
+                        })()}
                       </span>
                       {targetDevice && (
                         <span className="text-xs text-indigo-300">→ push history</span>

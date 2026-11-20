@@ -139,6 +139,9 @@ async def get_action_plan_summary(
     days: int = 30,
     created_by: Optional[str] = None,
     os_family: Optional[str] = None,
+    recent_status: Optional[str] = Query(
+        None, description="Limit the recent list to plans in this status"
+    ),
     current_user: UserDict = Depends(require_user()),
     db: SASession = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -161,6 +164,7 @@ async def get_action_plan_summary(
         days=days,
         os_family=os_family,
         paired_only=True,
+        recent_status=recent_status,
     )
 
 

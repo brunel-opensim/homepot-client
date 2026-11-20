@@ -67,7 +67,7 @@ describe('AIReliabilityPanel (Phase E: reliability + task aggregation)', () => {
     expect(await screen.findByText(/AI Reliability/i)).toBeInTheDocument();
     expect((await screen.findAllByText(/restart_service/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/Autonomy levels/i)).toBeInTheDocument();
-    expect(api.ai.getPlanSummary).toHaveBeenCalledWith(30, null, null);
+    expect(api.ai.getPlanSummary).toHaveBeenCalledWith(30, null, null, null);
     expect(api.ai.getReliability).toHaveBeenCalledWith(30, null, null);
     expect(api.ai.getAutonomy).toHaveBeenCalled();
   });
@@ -146,11 +146,13 @@ describe('AIReliabilityPanel (Phase E: reliability + task aggregation)', () => {
 
     expect(await screen.findByText(/AI Reliability/i)).toBeInTheDocument();
     expect(api.ai.getPlanSummary).toHaveBeenCalledTimes(1);
+    expect(api.ai.getPlanSummary).toHaveBeenNthCalledWith(1, 30, null, null, null);
 
     fireEvent.click(screen.getByRole('button', { name: /Succeeded/ }));
 
     expect(onStatusFilterChange).toHaveBeenCalledWith('succeeded');
     await waitFor(() => expect(api.ai.getPlanSummary).toHaveBeenCalledTimes(2));
+    expect(api.ai.getPlanSummary).toHaveBeenLastCalledWith(30, null, null, 'succeeded');
   });
 
   it('lets the newest SSE-triggered refresh win over an older one', async () => {
