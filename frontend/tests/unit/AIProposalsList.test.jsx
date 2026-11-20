@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import api from '@/services/api';
@@ -50,9 +50,33 @@ const mockPlans = [
   },
 ];
 
-function renderPage() {
+let eventSources;
+
+class MockEventSource {
+  constructor(url) {
+    this.url = url;
+    this.listeners = {};
+    this.closed = false;
+    eventSources.push(this);
+  }
+
+  addEventListener(type, listener) {
+    this.listeners[type] = listener;
+  }
+
+  close() {
+    this.closed = true;
+  }
+
+  emit(type, data) {
+    const listener = this.listeners[type];
+    if (listener) listener({ data: JSON.stringify(data) });
+  }
+}
+
+function renderPage(route = '/ai-proposals') {
   return render(
-    <MemoryRouter initialEntries={['/ai-proposals']}>
+    <MemoryRouter initialEntries={[route]}>
       <AIProposalsList />
     </MemoryRouter>
   );
@@ -60,11 +84,16 @@ function renderPage() {
 
 describe('AIProposalsList', () => {
   beforeEach(() => {
+    eventSources = [];
+    // jsdom does not implement scrollIntoView, which the deep-link highlight uses.
+    Element.prototype.scrollIntoView = vi.fn();
     api.aiProposals.list.mockResolvedValue({ plans: mockPlans, count: mockPlans.length });
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    delete Element.prototype.scrollIntoView;
   });
 
   it('renders the header and plan rationale', async () => {
@@ -160,5 +189,53 @@ describe('AIProposalsList', () => {
     api.aiProposals.list.mockImplementation(() => new Promise(() => {}));
     renderPage();
     expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+  });
+
+  it('keeps a newer SSE status when an older REST response arrives late', async () => {
+    const planId = '550e8400-e29b-41d4-a716-446655440003';
+    let resolveList;
+    api.aiProposals.list.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        })
+    );
+    api.aiProposals.list.mockResolvedValue({ plans: [], count: 0 });
+
+    vi.stubGlobal('EventSource', MockEventSource);
+
+    // The deep-link query param makes the page show all statuses, so a
+    // 'succeeded' SSE update is not dropped by the default status filter.
+    renderPage(`/ai-proposals?plan=${planId}`);
+
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+    const es = eventSources[0];
+    const ssePlan = {
+      plan_id: planId,
+      status: 'succeeded',
+      risk_tier: 'T2',
+      reversible: true,
+      rationale: 'SSE reports the plan has succeeded.',
+      created_at: new Date().toISOString(),
+      created_by: 'ai',
+      trust: { mode: 'assisted', score: 0.9, passed_gates: [], failed_gate: null },
+      steps: [],
+      approvals: [],
+    };
+
+    act(() => {
+      es.emit('plan', ssePlan);
+    });
+
+    expect(await screen.findByText('Succeeded')).toBeInTheDocument();
+
+    // The REST response that was already in flight still reports the old
+    // status; it must not overwrite the fresher SSE update.
+    await act(async () => {
+      resolveList({ plans: [{ ...ssePlan, status: 'executing' }], count: 1 });
+    });
+
+    expect(screen.getByText('Succeeded')).toBeInTheDocument();
+    expect(screen.queryByText('Executing')).not.toBeInTheDocument();
   });
 });
