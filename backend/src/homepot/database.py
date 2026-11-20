@@ -1102,12 +1102,22 @@ class DatabaseService:
     async def get_commands_for_device(
         self, device_id: int, limit: int = 100, offset: int = 0
     ) -> List[DeviceCommand]:
-        """Get all commands for a device, sorted by created_at descending."""
+        """Get all commands for a device, newest first.
+
+        Orders by executed/completion time when available so the most recently
+        finished (e.g. last succeeded) command appears on top, falling back to
+        creation time for commands that have not executed yet.
+        """
         async with self.get_session() as session:
             result = await session.execute(
                 select(DeviceCommand)
                 .where(DeviceCommand.device_id == device_id)
-                .order_by(DeviceCommand.created_at.desc())
+                .order_by(
+                    func.coalesce(
+                        DeviceCommand.executed_at, DeviceCommand.created_at
+                    ).desc(),
+                    DeviceCommand.created_at.desc(),
+                )
                 .limit(limit)
                 .offset(offset)
             )
