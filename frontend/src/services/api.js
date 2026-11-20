@@ -916,14 +916,19 @@ const api = {
      * Returns plan counts by status over a rolling window plus recent plans.
      * @param {number} [days=30] - Aggregation window in days.
      * @param {string} [createdBy] - Optional creator filter (e.g. user id).
+     * @param {string} [osFamily] - Optional OS family filter.
+     * @param {string} [recentStatus] - Optional status filter for the recent list.
      */
-    getPlanSummary: async (days = 30, createdBy = null, osFamily = null) => {
+    getPlanSummary: async (days = 30, createdBy = null, osFamily = null, recentStatus = null) => {
       const params = { days };
       if (createdBy) {
         params.created_by = createdBy;
       }
       if (osFamily) {
         params.os_family = osFamily;
+      }
+      if (recentStatus) {
+        params.recent_status = recentStatus;
       }
       const response = await apiClient.get('/ai/action-plans/summary', { params });
       return response.data;
