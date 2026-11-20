@@ -88,6 +88,20 @@ describe('AIProposalsList', () => {
     // jsdom does not implement scrollIntoView, which the deep-link highlight uses.
     Element.prototype.scrollIntoView = vi.fn();
     api.aiProposals.list.mockResolvedValue({ plans: mockPlans, count: mockPlans.length });
+    // AIReliabilityPanel (rendered inside AIProposalsList) fetches these on mount.
+    api.ai = {
+      ...(api.ai || {}),
+      getPlanSummary: vi.fn().mockResolvedValue({
+        window_days: 30,
+        total: 2,
+        by_status: { pending_approval: 1, approved: 1 },
+        needs_approval: 1,
+        recent: [],
+      }),
+      getReliability: vi.fn().mockResolvedValue({ status: 'success', metrics: {} }),
+      getAutonomy: vi.fn().mockResolvedValue({ mode: 'assisted' }),
+      getCalibration: vi.fn().mockResolvedValue({ status: 'success' }),
+    };
   });
 
   afterEach(() => {

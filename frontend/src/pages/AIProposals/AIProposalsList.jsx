@@ -257,18 +257,18 @@ export default function AIProposalsList() {
 
       setPlans((prev) => {
         const idx = prev.findIndex((p) => p.plan_id === data.plan_id);
+        const filter = statusFilterRef.current;
         if (idx >= 0) {
           // If the plan no longer matches the active filter, drop it.
-          const filter = statusFilterRef.current;
           if (filter && data.status !== filter) {
             return prev.filter((p) => p.plan_id !== data.plan_id);
           }
-          const next = [...prev];
-          next[idx] = data;
-          return next;
+          // Move the updated plan to the top so the most recently changed
+          // (e.g. just succeeded) plan stays visible while the list settles.
+          const next = prev.filter((p) => p.plan_id !== data.plan_id);
+          return [data, ...next];
         }
         // New plan — only add if it matches the active filter (or no filter).
-        const filter = statusFilterRef.current;
         if (filter && data.status !== filter) return prev;
         return [data, ...prev];
       });
