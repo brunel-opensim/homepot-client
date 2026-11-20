@@ -14,7 +14,7 @@ any backend context.
 from typing import Any, Dict, Iterable, List, Optional, cast
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from homepot.app.ai_ops.approval import requires_step_approval
@@ -404,7 +404,10 @@ class AIActionRepository:
         blast-radius scoping arrives with the policy engine in Phase 3.
         ``None`` means "no scope filter" (admin).
         """
-        stmt = select(AIActionPlan).order_by(AIActionPlan.created_at.desc())
+        stmt = select(AIActionPlan).order_by(
+            func.coalesce(AIActionPlan.updated_at, AIActionPlan.created_at).desc(),
+            AIActionPlan.created_at.desc(),
+        )
         if statuses is not None:
             status_list = list(statuses)
             if not status_list:
