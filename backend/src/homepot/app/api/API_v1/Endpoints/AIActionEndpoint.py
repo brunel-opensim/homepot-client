@@ -366,6 +366,12 @@ async def stream_action_plans(
 
         while asyncio.get_event_loop().time() < deadline:
             try:
+                # This stream keeps one session for its whole lifetime. Expire
+                # identity-mapped instances before each poll so status changes
+                # committed by the reconcile loop in other sessions are seen
+                # without waiting for the client to reconnect.
+                db.expire_all()
+
                 # Fetch plans scoped to accessible devices
                 plans = []
                 try:
