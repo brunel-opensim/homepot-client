@@ -137,7 +137,7 @@ export default function AIProposalsList() {
       setToastKey((k) => k + 1);
       setToast({ type: 'success', message: 'Proposal approved.' });
       setApproveTarget(null);
-      fetchPlans(true);
+      fetchPlans();
     } catch (err) {
       console.error('Failed to approve plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -156,7 +156,7 @@ export default function AIProposalsList() {
       setToast({ type: 'success', message: 'Proposal rejected.' });
       setRejectTarget(null);
       setRejectReason('');
-      fetchPlans(true);
+      fetchPlans();
     } catch (err) {
       console.error('Failed to reject plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -178,7 +178,7 @@ export default function AIProposalsList() {
       setToastKey((k) => k + 1);
       setToast({ type: 'success', message: `Step ${step.seq + 1} approved.` });
       setStepApproveTarget(null);
-      fetchPlans(true);
+      fetchPlans();
     } catch (err) {
       console.error('Failed to approve step:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -207,7 +207,7 @@ export default function AIProposalsList() {
         setExecuteTarget(null);
         setExecutingPlanId(planId);
       }
-      fetchPlans(true);
+      fetchPlans();
     } catch (err) {
       console.error('Failed to execute plan:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
@@ -246,6 +246,15 @@ export default function AIProposalsList() {
         return;
       }
       if (!data || !data.plan_id) return;
+
+      // SSE is the freshest source. Invalidate any REST request already in
+      // flight so a slower list response cannot overwrite this update.
+      fetchRequestIdRef.current += 1;
+      // The stale request's `finally` is skipped, so clear the initial
+      // loading state here or the SSE-provided plan would stay hidden.
+      initialLoadRef.current = false;
+      setLoading(false);
+
       setPlans((prev) => {
         const idx = prev.findIndex((p) => p.plan_id === data.plan_id);
         if (idx >= 0) {
@@ -269,7 +278,7 @@ export default function AIProposalsList() {
         // ignore
       }
       if (executingPlanId === data.plan_id && terminal.has(data.status)) {
-        fetchPlans(true);
+        fetchPlans();
         setExecutingPlanId(null);
       }
     });
@@ -312,7 +321,7 @@ export default function AIProposalsList() {
         });
       }
       setExecuteAndWaitTarget(null);
-      fetchPlans(true);
+      fetchPlans();
     } catch (err) {
       console.error('Failed to execute-and-wait:', err);
       setToast({ type: 'error', message: apiHelpers.formatError(err) });
