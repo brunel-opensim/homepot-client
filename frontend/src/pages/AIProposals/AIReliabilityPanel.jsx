@@ -34,12 +34,11 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
   const [selectedOs, setSelectedOs] = useState(''); // '' = all (fleet-wide)
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
-  const fetchingRef = useRef(false);
+  const fetchRequestIdRef = useRef(0);
   const initialLoadRef = useRef(true);
 
   const fetchAll = useCallback(async () => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
+    const requestId = ++fetchRequestIdRef.current;
     try {
       if (initialLoadRef.current) setLoading(true);
       const [summaryData, reliabilityData, autonomyData] = await Promise.allSettled([
@@ -47,6 +46,9 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
         api.ai.getReliability(30, null, selectedOs || null),
         api.ai.getAutonomy(selectedOs || null),
       ]);
+
+      // A newer refresh (SSE burst or badge click) supersedes this one.
+      if (requestId !== fetchRequestIdRef.current) return;
 
       const nextErrors = {};
 
@@ -78,6 +80,7 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
       if (typeof api.ai.getCalibration === 'function') {
         try {
           const calibrationData = await api.ai.getCalibration(30, selectedOs || null);
+          if (requestId !== fetchRequestIdRef.current) return;
           if (calibrationData?.status !== 'error') {
             setCalibration(calibrationData);
           }
@@ -86,11 +89,13 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
         }
       }
 
+      if (requestId !== fetchRequestIdRef.current) return;
       setErrors(nextErrors);
     } finally {
-      setLoading(false);
-      fetchingRef.current = false;
-      initialLoadRef.current = false;
+      if (requestId === fetchRequestIdRef.current) {
+        setLoading(false);
+        initialLoadRef.current = false;
+      }
     }
   }, [selectedOs]);
 
@@ -202,10 +207,15 @@ export default function AIReliabilityPanel({ statusFilter, onStatusFilterChange 
                   <button
                     key={status}
                     type="button"
-                    onClick={() =>
-                      onStatusFilterChange &&
-                      onStatusFilterChange(statusFilter === status ? '' : status)
-                    }
+                    onClick={() => {
+                      if (onStatusFilterChange) {
+                        onStatusFilterChange(statusFilter === status ? '' : status);
+                      }
+                      // The badge is a freshness trigger too: the summary is
+                      // only refreshed on SSE events otherwise, so the rows
+                      // for a newly selected status can lag behind its count.
+                      fetchAll();
+                    }}
                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
                       statusFilter === status
                         ? 'bg-indigo-600 text-white border-indigo-500'

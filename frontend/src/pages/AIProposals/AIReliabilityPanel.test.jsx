@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 import AIReliabilityPanel from './AIReliabilityPanel';
 import api from '@/services/api';
@@ -45,6 +46,8 @@ const reliabilityFixture = {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+const renderWithRouter = (ui) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('AIReliabilityPanel (Phase E: reliability + task aggregation)', () => {
   it('renders the panel heading and fetches autonomy levels', async () => {
@@ -114,5 +117,114 @@ describe('AIReliabilityPanel (Phase E: reliability + task aggregation)', () => {
     expect(await screen.findByText(/Some AI metrics could not be loaded/i)).toBeInTheDocument();
     expect(screen.getByText(/db down/)).toBeInTheDocument();
     expect(screen.queryByText(/No action outcomes recorded yet/i)).not.toBeInTheDocument();
+  });
+
+  it('refetches the summary when a status badge is clicked', async () => {
+    api.ai.getPlanSummary.mockResolvedValue({
+      total: 1,
+      period_days: 30,
+      by_status: { succeeded: 1 },
+      recent: [
+        {
+          plan_id: 'plan-click',
+          status: 'succeeded',
+          risk_tier: 'T2',
+          created_at: '2026-11-20T10:00:00Z',
+          created_by: 'ai',
+          step_count: 1,
+          target_device_id: 'DEV-1',
+        },
+      ],
+    });
+    api.ai.getReliability.mockResolvedValue(reliabilityFixture);
+    api.ai.getAutonomy.mockResolvedValue({});
+    const onStatusFilterChange = vi.fn();
+
+    renderWithRouter(
+      <AIReliabilityPanel statusFilter="" onStatusFilterChange={onStatusFilterChange} />
+    );
+
+    expect(await screen.findByText(/AI Reliability/i)).toBeInTheDocument();
+    expect(api.ai.getPlanSummary).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /Succeeded/ }));
+
+    expect(onStatusFilterChange).toHaveBeenCalledWith('succeeded');
+    await waitFor(() => expect(api.ai.getPlanSummary).toHaveBeenCalledTimes(2));
+  });
+
+  it('lets the newest SSE-triggered refresh win over an older one', async () => {
+    let resolveFirst;
+    let resolveSecond;
+    api.ai.getPlanSummary
+      .mockResolvedValueOnce({ total: 0, period_days: 30, by_status: {}, recent: [] })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          })
+      );
+    api.ai.getReliability.mockResolvedValue(reliabilityFixture);
+    api.ai.getAutonomy.mockResolvedValue({});
+
+    renderWithRouter(
+      <AIReliabilityPanel statusFilter="succeeded" onStatusFilterChange={vi.fn()} />
+    );
+
+    expect(await screen.findByText(/AI Reliability/i)).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event('ai:plan-updated'));
+      window.dispatchEvent(new Event('ai:plan-updated'));
+    });
+
+    await waitFor(() => expect(api.ai.getPlanSummary).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      resolveSecond({
+        total: 1,
+        period_days: 30,
+        by_status: { succeeded: 1 },
+        recent: [
+          {
+            plan_id: 'plan-latest',
+            status: 'succeeded',
+            risk_tier: 'T2',
+            created_at: '2026-11-20T10:00:00Z',
+            created_by: 'ai',
+            step_count: 1,
+            target_device_id: 'DEV-1',
+          },
+        ],
+      });
+    });
+    expect(await screen.findByText('plan-latest')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirst({
+        total: 1,
+        period_days: 30,
+        by_status: { executing: 1 },
+        recent: [
+          {
+            plan_id: 'plan-latest',
+            status: 'executing',
+            risk_tier: 'T2',
+            created_at: '2026-11-20T10:00:00Z',
+            created_by: 'ai',
+            step_count: 1,
+            target_device_id: 'DEV-1',
+          },
+        ],
+      });
+    });
+    expect(screen.getByText('plan-latest')).toBeInTheDocument();
+    expect(screen.queryByText('Executing')).not.toBeInTheDocument();
   });
 });
