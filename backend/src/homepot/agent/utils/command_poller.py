@@ -15,7 +15,7 @@ import socket
 import subprocess  # noqa: S404 - arguments are parsed and permission-gated
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 import urllib.parse
 import urllib.request
 import zipfile
@@ -55,6 +55,7 @@ COMMAND_TYPES = frozenset(
         "get_system_info",
         "get_battery_status",
         "set_app_policy",
+        "set_wifi_policy",
         "notify_user",
         "collect_support_bundle",
         "disk_cleanup",
@@ -97,6 +98,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "get_system_info": "command_execution",
     "get_battery_status": "command_execution",
     "set_app_policy": "root_access",
+    "set_wifi_policy": "root_access",
     "notify_user": "command_execution",
     "collect_support_bundle": "command_execution",
     "disk_cleanup": "command_execution",
@@ -1212,6 +1214,227 @@ def _run_set_app_policy(data: Dict[str, Any]) -> Dict[str, Any]:
             )
         except Exception:  # noqa: BLE001
             pass
+
+    return {"status": "completed", "result": result}
+
+
+# --- set_wifi_policy --------------------------------------------------------
+
+
+def _run_set_wifi_policy(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Configure Wi-Fi allow/block policy on the device (root_access).
+
+    Modes:
+      - ``allowlist``: only connect to approved SSIDs; disconnect from others
+      - ``blocklist``: block specific SSIDs; disconnect from them
+
+    On Windows uses ``netsh wlan`` for profile management. Persists policy to
+    ``wifi_policy.json`` for periodic re-enforcement.
+    """
+    mode = str(data.get("mode", "allowlist")).lower()
+    if mode not in ("allowlist", "blocklist"):
+        return {
+            "status": "failed",
+            "result": {
+                "error": f"mode must be 'allowlist' or 'blocklist', got '{mode}'"
+            },
+        }
+
+    networks = data.get("networks", [])
+    if not isinstance(networks, list) or not networks:
+        return {
+            "status": "failed",
+            "result": {"error": "networks must be a non-empty list"},
+        }
+
+    enforce = bool(data.get("enforce", True))
+    auto_connect = bool(data.get("auto_connect", True))
+
+    # Normalize network entries
+    normalized = []
+    for net in networks:
+        if isinstance(net, str):
+            normalized.append({"ssid": net, "security": None, "password": None})
+        elif isinstance(net, dict):
+            normalized.append(
+                {
+                    "ssid": str(net.get("ssid", "")),
+                    "security": net.get("security"),
+                    "password": net.get("password"),
+                }
+            )
+        else:
+            continue
+
+    if not all(n["ssid"] for n in normalized):
+        return {
+            "status": "failed",
+            "result": {"error": "each network must have a non-empty ssid"},
+        }
+
+    ssids = [n["ssid"] for n in normalized]
+    disconnected_from = None
+    profiles_removed = 0
+    profiles_added = 0
+
+    if _is_windows_platform():
+        # Get current Wi-Fi profile
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["netsh", "wlan", "show", "interfaces"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            current_ssid = None
+            for line in (out.stdout or "").splitlines():
+                if "SSID" in line and "BSSID" not in line:
+                    parts = line.split(":", 1)
+                    if len(parts) == 2:
+                        current_ssid = parts[1].strip()
+                        break
+
+            # If currently connected to unauthorized network, disconnect
+            if enforce and current_ssid:
+                if mode == "allowlist" and current_ssid not in ssids:
+                    subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                        ["netsh", "wlan", "disconnect"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    disconnected_from = current_ssid
+                elif mode == "blocklist" and current_ssid in ssids:
+                    subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                        ["netsh", "wlan", "disconnect"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    disconnected_from = current_ssid
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Remove unauthorized profiles (best-effort)
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["netsh", "wlan", "show", "profiles"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            all_profiles = []
+            for line in (out.stdout or "").splitlines():
+                if "All User Profile" in line or "Current User Profile" in line:
+                    parts = line.split(":", 1)
+                    if len(parts) == 2:
+                        all_profiles.append(parts[1].strip())
+
+            for profile in all_profiles:
+                should_remove = False
+                if mode == "allowlist" and profile not in ssids:
+                    should_remove = True
+                elif mode == "blocklist" and profile in ssids:
+                    should_remove = True
+
+                if should_remove:
+                    try:
+                        subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                            ["netsh", "wlan", "delete", "profile", f"name={profile}"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
+                        )
+                        profiles_removed += 1
+                    except Exception:  # noqa: BLE001
+                        pass
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Add approved profiles (best-effort, requires password)
+        for net in normalized:
+            if net.get("password"):
+                try:
+                    # Create a Wi-Fi profile XML
+                    profile_xml = (
+                        '<?xml version="1.0"?>\n'
+                        '<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">\n'
+                        f"  <name>{net['ssid']}</name>\n"
+                        "  <SSIDConfig>\n"
+                        f"    <SSID><name>{net['ssid']}</name></SSID>\n"
+                        "  </SSIDConfig>\n"
+                        "  <connectionType>ESS</connectionType>\n"
+                        "  <connectionMode>auto</connectionMode>\n"
+                        "  <MSM>\n"
+                        "    <security>\n"
+                        "      <authEncryption>\n"
+                        f"        <authentication>{net.get('security', 'WPA2PSK')}</authentication>\n"
+                        f"        <encryption>AES</encryption>\n"
+                        "        <useOneX>false</useOneX>\n"
+                        "      </authEncryption>\n"
+                        "      <sharedKey>\n"
+                        "        <keyType>passPhrase</keyType>\n"
+                        "        <protected>false</protected>\n"
+                        f"        <keyMaterial>{net['password']}</keyMaterial>\n"
+                        "      </sharedKey>\n"
+                        "    </security>\n"
+                        "  </MSM>\n"
+                        "</WLANProfile>\n"
+                    )
+                    profile_path = os.path.join(
+                        tempfile.gettempdir(), f"wifi-profile-{net['ssid']}.xml"
+                    )
+                    with open(profile_path, "w", encoding="utf-8") as fh:
+                        fh.write(profile_xml)
+                    subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                        ["netsh", "wlan", "add", "profile", f"filename={profile_path}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    profiles_added += 1
+                    try:
+                        os.remove(profile_path)
+                    except OSError:
+                        pass
+                except Exception:  # noqa: BLE001
+                    pass
+
+    # Persist policy file
+    policy_dir = _homepot_data_dir()
+    os.makedirs(policy_dir, exist_ok=True)
+    policy_path = os.path.join(policy_dir, "wifi_policy.json")
+    try:
+        policy = {
+            "mode": mode,
+            "networks": normalized,
+            "auto_connect": auto_connect,
+            "enforce": enforce,
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        # Don't persist passwords in the policy file for security
+        for net in cast(List[Dict[str, Any]], policy["networks"]):
+            net.pop("password", None)
+        with open(policy_path, "w", encoding="utf-8") as fh:
+            json.dump(policy, fh, indent=2)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "status": "failed",
+            "result": {"error": f"failed to persist policy: {exc}"},
+        }
+
+    result: Dict[str, Any] = {
+        "mode": mode,
+        "networks_configured": len(normalized),
+        "profiles_removed": profiles_removed,
+        "profiles_added": profiles_added,
+        "disconnected_from": disconnected_from,
+        "policy_applied": True,
+        "policy_path": policy_path,
+        "platform": platform.system(),
+    }
+    if _is_windows_platform():
+        result["method"] = "netsh"
 
     return {"status": "completed", "result": result}
 
@@ -3196,6 +3419,9 @@ def _process_command_impl(
     if command_type == "set_app_policy":
         return _run_set_app_policy(_command_data(command))
 
+    if command_type == "set_wifi_policy":
+        return _run_set_wifi_policy(_command_data(command))
+
     if command_type == "notify_user":
         return _run_notify_user(_command_data(command))
 
@@ -3323,6 +3549,7 @@ _DESCRIPTIVE_COMMANDS = {
     "get_system_info": "collect a hardware/OS inventory snapshot",
     "get_battery_status": "read battery charge and charging state",
     "set_app_policy": "configure application allow/block list",
+    "set_wifi_policy": "configure Wi-Fi allow/block list",
     "tail_system_log": "read recent OS error/warning events",
     "network_test": "test network connectivity to a host",
     "restart_agent": "restart the agent process",

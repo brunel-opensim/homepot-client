@@ -65,6 +65,7 @@ def test_registry_declares_expected_actions():
         "get_system_info",
         "get_battery_status",
         "set_app_policy",
+        "set_wifi_policy",
         "collect_support_bundle",
         "notify_user",
         "disk_cleanup",
