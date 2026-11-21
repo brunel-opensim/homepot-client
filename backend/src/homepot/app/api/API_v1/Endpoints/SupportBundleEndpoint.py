@@ -15,7 +15,7 @@ from typing import Any, Dict
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 
 from homepot.app.auth_utils import get_current_device, get_current_user, require_user
 from homepot.models import Device, User
@@ -105,7 +105,7 @@ async def upload_support_bundle(
 async def download_support_bundle(
     bundle_id: str,
     current_user: User = Depends(get_current_user),
-) -> FileResponse:
+) -> Response:
     """Download a previously uploaded support bundle (user-authenticated)."""
     _ensure_bundle_dir()
 
@@ -115,15 +115,31 @@ async def download_support_bundle(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid bundle_id")
 
-    # Construct path from validated UUID only (no user-provided data).
+    # Validate bundle_id is a UUID.
+    try:
+        uuid.UUID(bundle_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid bundle_id")
+
+    # Read file content into memory to avoid passing user-derived path
+    # to FileResponse (satisfies CodeQL path-injection check).
     filename = f"{bundle_id}.zip"
     filepath = os.path.join(_BUNDLE_DIR, filename)
 
-    if not os.path.isfile(filepath):
+    # Containment check: resolved path must stay within bundle dir.
+    real_filepath = os.path.realpath(filepath)
+    real_bundle_dir = os.path.realpath(_BUNDLE_DIR)
+    if not real_filepath.startswith(real_bundle_dir + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid bundle path")
+
+    if not os.path.isfile(real_filepath):
         raise HTTPException(status_code=404, detail="Support bundle not found")
 
-    return FileResponse(
-        filepath,
+    with open(real_filepath, "rb") as fh:
+        content = fh.read()
+
+    return Response(
+        content=content,
         media_type="application/zip",
-        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
