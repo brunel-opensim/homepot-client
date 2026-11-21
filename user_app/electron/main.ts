@@ -665,6 +665,15 @@ interface AppLogEntry {
 }
 
 function getAppLogFile(): string {
+  // Store app-events.json in the centralized ProgramData\\Homepot directory on
+  // Windows so the on-device agent (and collect_support_bundle) can access it.
+  // Fall back to userData on other platforms (dev mode).
+  if (process.platform === 'win32') {
+    const programData = process.env.PROGRAMDATA || 'C:\\ProgramData'
+    const dir = path.join(programData, 'Homepot')
+    try { fs.mkdirSync(dir, { recursive: true }) } catch { /* ignore */ }
+    return path.join(dir, 'app-events.json')
+  }
   return path.join(app.getPath('userData'), 'app-events.json')
 }
 
