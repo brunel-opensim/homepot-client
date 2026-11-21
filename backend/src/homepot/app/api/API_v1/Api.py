@@ -37,6 +37,7 @@ from .Endpoints import (
     SitesBootstrapKeyEndpoint,
     SiteSchedulesEndpoint,
     SitesEndpoint,
+    SupportBundleEndpoint,
     TenantsEndpoint,
     UIEndpoint,
     UserRegisterEndpoint,
@@ -68,6 +69,7 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     DeviceCommandsEndpoint.router, prefix="/devices", tags=["Device Commands"]
 )
+api_v1_router.include_router(SupportBundleEndpoint.router, tags=["Support Bundles"])
 api_v1_router.include_router(AgentsEndpoints.router, tags=["Agents"])
 api_v1_router.include_router(
     UserRegisterEndpoint.router, prefix="/auth", tags=["Authentication"]

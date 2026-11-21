@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+from pathlib import Path
 import platform
 import re
 import shlex
@@ -17,6 +18,7 @@ import time
 from typing import Any, Dict, List, Optional
 import urllib.parse
 import urllib.request
+import zipfile
 
 import httpx
 import psutil
@@ -1099,6 +1101,48 @@ def _run_collect_support_bundle(data: Dict[str, Any]) -> Dict[str, Any]:
                 with open(os.path.join(tmp_dir, name), "w", encoding="utf-8") as fh:
                     json.dump(payload, fh, default=str, indent=2)
 
+            # Include the contents of the Homepot data directory (logs, config,
+            # identity, etc.) so support bundles capture the on-device state.
+            # Skips credential files and caps individual file size to avoid
+            # leaking secrets or ballooning the bundle.
+            homepot_dir = (
+                Path(os.environ.get("PROGRAMDATA", "C:\\\\ProgramData")) / "Homepot"
+            )
+            if not homepot_dir.is_dir():
+                # Fall back to the user-profile location used in dev mode.
+                homepot_dir = Path.home() / "AppData" / "Local" / "Homepot"
+            if homepot_dir.is_dir():
+                bundle_root = os.path.join(tmp_dir, "homepot_data")
+                os.makedirs(bundle_root, exist_ok=True)
+                _MAX_FILE_BYTES = 5 * 1024 * 1024  # 5 MiB per file
+                _SKIP_NAMES = {
+                    "credentials",
+                    "credentials.json",
+                    ".env",
+                    "secret",
+                    "secrets",
+                }
+                for root, _dirs, files in os.walk(homepot_dir):
+                    rel_root = os.path.relpath(root, homepot_dir)
+                    dest_root = (
+                        bundle_root
+                        if rel_root == "."
+                        else os.path.join(bundle_root, rel_root)
+                    )
+                    os.makedirs(dest_root, exist_ok=True)
+                    for fname in files:
+                        if fname.lower() in _SKIP_NAMES or fname.lower().startswith(
+                            ".env"
+                        ):
+                            continue
+                        src = os.path.join(root, fname)
+                        try:
+                            if os.path.getsize(src) > _MAX_FILE_BYTES:
+                                continue
+                            shutil.copy2(src, os.path.join(dest_root, fname))
+                        except (OSError, shutil.Error):
+                            continue
+
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             zip_base = os.path.join(tempfile.gettempdir(), f"homepot-support-{stamp}")
             zip_path = shutil.make_archive(zip_base, "zip", root_dir=tmp_dir)
@@ -1106,12 +1150,18 @@ def _run_collect_support_bundle(data: Dict[str, Any]) -> Dict[str, Any]:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
         size_bytes = os.path.getsize(zip_path) if os.path.exists(zip_path) else 0
+        # Count all files in the zip for an accurate file_count.
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                file_count = len(zf.namelist())
+        except Exception:  # noqa: BLE001
+            file_count = len(snapshots)
         return {
             "status": "completed",
             "result": {
                 "path": zip_path,
                 "size_bytes": size_bytes,
-                "file_count": len(snapshots),
+                "file_count": file_count,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
         }
