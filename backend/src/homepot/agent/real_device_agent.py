@@ -99,6 +99,19 @@ def _consume_unpaired_stop() -> bool:
 _restart_requested = False
 
 
+def _clean_shutdown_marker_path(config: Optional[Dict[str, Any]] = None) -> str:
+    r"""Return the path to the clean-shutdown marker file.
+
+    Stored in the centralized ProgramData\\Homepot directory on Windows so both
+    the agent and the support bundle can access it.
+    """
+    if sys.platform == "win32":
+        base = os.environ.get("PROGRAMDATA", r"C:\\ProgramData")
+    else:
+        base = os.path.expanduser("~")
+    return os.path.join(base, "Homepot", "clean-shutdown.marker")
+
+
 def _request_agent_restart() -> None:
     """Flag that the running agent process should exit with the restart code."""
     global _restart_requested
@@ -1684,6 +1697,21 @@ async def run_agent(
     """
     config = load_agent_config()
 
+    # Detect unclean shutdown from a previous session: if the clean-shutdown
+    # marker is absent the previous process did not exit gracefully (e.g.
+    # power loss, crash, kill). Log it for diagnostics.
+    _clean_shutdown_marker = _clean_shutdown_marker_path(config)
+    if not os.path.exists(_clean_shutdown_marker):
+        logger.warning(
+            "Previous session ended unexpectedly (unclean shutdown detected). "
+            "This may indicate a power loss, crash, or forced termination."
+        )
+    else:
+        try:
+            os.remove(_clean_shutdown_marker)
+        except OSError:
+            pass
+
     # Track agent restarts for health monitoring
     restart_count = _increment_restart_count()
     config["agent_restart_count"] = restart_count
@@ -1833,6 +1861,16 @@ async def run_agent(
 
         # Graceful shutdown: mark the device OFFLINE on the backend now.
         await send_final_offline_heartbeat(client, config)
+
+    # Write clean-shutdown marker so the next startup can detect whether
+    # this session ended gracefully.
+    try:
+        marker_dir = os.path.dirname(_clean_shutdown_marker)
+        os.makedirs(marker_dir, exist_ok=True)
+        with open(_clean_shutdown_marker, "w") as fh:
+            fh.write(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    except OSError as exc:
+        logger.warning("Failed to write clean-shutdown marker: %s", exc)
 
     logger.info("Agent stopped")
 
