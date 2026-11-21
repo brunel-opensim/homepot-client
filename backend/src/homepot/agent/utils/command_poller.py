@@ -1351,11 +1351,14 @@ def _run_set_wifi_policy(data: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:  # noqa: BLE001
             pass
 
-        # Add approved profiles (best-effort, requires password)
+        # Add approved profiles (best-effort). Profiles are created without
+        # passwords (clear-text avoidance); passwords are set afterwards via
+        # netsh so they are stored in the Windows profile store (encrypted)
+        # rather than a temp file.
         for net in normalized:
             if net.get("password"):
                 try:
-                    # Create a Wi-Fi profile XML
+                    # Create a Wi-Fi profile XML without the key material.
                     profile_xml = (
                         '<?xml version="1.0"?>\n'
                         '<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">\n'
@@ -1372,11 +1375,6 @@ def _run_set_wifi_policy(data: Dict[str, Any]) -> Dict[str, Any]:
                         f"        <encryption>AES</encryption>\n"
                         "        <useOneX>false</useOneX>\n"
                         "      </authEncryption>\n"
-                        "      <sharedKey>\n"
-                        "        <keyType>passPhrase</keyType>\n"
-                        "        <protected>false</protected>\n"
-                        f"        <keyMaterial>{net['password']}</keyMaterial>\n"
-                        "      </sharedKey>\n"
                         "    </security>\n"
                         "  </MSM>\n"
                         "</WLANProfile>\n"
@@ -1384,12 +1382,24 @@ def _run_set_wifi_policy(data: Dict[str, Any]) -> Dict[str, Any]:
                     profile_path = os.path.join(
                         tempfile.gettempdir(), f"wifi-profile-{net['ssid']}.xml"
                     )
-                    with open(
-                        profile_path, "w", encoding="utf-8"
-                    ) as fh:  # codeql[py/clear-text-storage-sensitive-data]
+                    with open(profile_path, "w", encoding="utf-8") as fh:
                         fh.write(profile_xml)
                     subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
                         ["netsh", "wlan", "add", "profile", f"filename={profile_path}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    # Set the password via netsh (stored encrypted by Windows).
+                    subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                        [
+                            "netsh",
+                            "wlan",
+                            "set",
+                            "profileparameter",
+                            f"name={net['ssid']}",
+                            f"keyMaterial={net['password']}",
+                        ],
                         capture_output=True,
                         text=True,
                         timeout=10,
