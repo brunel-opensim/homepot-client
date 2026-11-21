@@ -307,10 +307,17 @@ export default function AIProposalsList() {
           if (filter && data.status !== filter) {
             return prev.filter((p) => p.plan_id !== data.plan_id);
           }
-          // Move the updated plan to the top so the most recently changed
-          // (e.g. just succeeded) plan stays visible while the list settles.
-          const next = prev.filter((p) => p.plan_id !== data.plan_id);
-          return [data, ...next];
+          // Only reorder when the status actually changed (a real transition
+          // such as a plan just succeeding). The SSE initial burst emits every
+          // plan; reordering on every emission reverses the REST-loaded order.
+          // For unchanged status, update in place to preserve ordering.
+          if (prev[idx].status !== data.status) {
+            const next = prev.filter((p) => p.plan_id !== data.plan_id);
+            return [data, ...next];
+          }
+          const next = [...prev];
+          next[idx] = data;
+          return next;
         }
         // New plan — only add if it matches the active filter (or no filter).
         if (filter && data.status !== filter) return prev;
