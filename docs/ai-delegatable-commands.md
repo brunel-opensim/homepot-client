@@ -17,9 +17,10 @@ and for the automated soak script (Option B). Reboot (`restart`) and shutdown
 | 6 | `list_drives` | `list_drives` | none | List mounted drives/volumes and free space |
 | 7 | `list_sessions` | `list_sessions` | none | List users currently logged into the device |
 | 8 | `get_system_info` | `get_system_info` | none | Hardware/OS inventory (CPU/RAM/GPU, serial, BIOS, OS build) |
-| 9 | `tail_system_log` | `tail_system_log` | `lines` | Recent OS errors (Windows Event Log / `journalctl`) |
-| 10 | `network_test` | `network_test` | `host`, `port` (optional), `timeout_seconds` | DNS/ping/TCP-port test to a target |
-| 11 | `collect_support_bundle` | `collect_support_bundle` | none | Zip hardware/OS, disk, process, and metrics snapshots into a support artifact |
+| 9 | `get_battery_status` | `get_battery_status` | none | Battery charge %, charging state, and estimated time remaining (POS devices) |
+| 10 | `tail_system_log` | `tail_system_log` | `lines` | Recent OS errors (Windows Event Log / `journalctl`) |
+| 11 | `network_test` | `network_test` | `host`, `port` (optional), `timeout_seconds` | DNS/ping/TCP-port test to a target |
+| 12 | `collect_support_bundle` | `collect_support_bundle` | none | Zip hardware/OS, disk, process, and metrics snapshots into a support artifact |
 
 ## T2 — Reversible (requires approval, can be rolled back)
 
