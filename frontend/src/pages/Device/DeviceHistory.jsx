@@ -841,6 +841,23 @@ export default function DeviceHistory() {
                           {normalizeOutput(selectedCommand.result.message)}
                         </pre>
                       )}
+                      {selectedCommand.result.download_url && (
+                        <div className="mt-2">
+                          <a
+                            href={selectedCommand.result.download_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 rounded-md transition-colors"
+                          >
+                            Download Support Bundle
+                          </a>
+                          {selectedCommand.result.bundle_id && (
+                            <span className="ml-2 text-[10px] text-slate-500 font-mono">
+                              {selectedCommand.result.bundle_id}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {selectedCommand.result.stdout && (
                         <pre className="text-xs font-mono text-blue-300 whitespace-pre-wrap break-words">
                           {normalizeOutput(selectedCommand.result.stdout)}
