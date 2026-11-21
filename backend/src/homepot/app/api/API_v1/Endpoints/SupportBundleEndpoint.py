@@ -63,8 +63,13 @@ async def upload_support_bundle(
 
     _ensure_bundle_dir()
 
+    # Sanitize device_id to prevent path traversal (CodeQL).
+    safe_device_id = os.path.basename(device_id)
+    if not safe_device_id or safe_device_id != device_id or ".." in device_id:
+        raise HTTPException(status_code=400, detail="Invalid device_id")
+
     bundle_id = str(uuid.uuid4())
-    filename = f"{device_id}_{bundle_id}.zip"
+    filename = f"{safe_device_id}_{bundle_id}.zip"
     filepath = os.path.join(_BUNDLE_DIR, filename)
 
     try:
@@ -103,11 +108,17 @@ async def download_support_bundle(
     """Download a previously uploaded support bundle (user-authenticated)."""
     _ensure_bundle_dir()
 
-    # Find the file matching the bundle_id
+    # Validate bundle_id is a UUID to prevent path traversal.
+    try:
+        uuid.UUID(bundle_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid bundle_id")
+
+    # Find the file matching the bundle_id (must be a .zip in the bundle dir).
     for fname in os.listdir(_BUNDLE_DIR):
-        if bundle_id in fname:
+        if bundle_id in fname and fname.endswith(".zip"):
             filepath = os.path.join(_BUNDLE_DIR, fname)
-            if os.path.isfile(filepath):
+            if os.path.isfile(filepath) and os.path.basename(filepath) == fname:
                 return FileResponse(
                     filepath,
                     media_type="application/zip",
