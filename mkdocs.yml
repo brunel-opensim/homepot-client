@@ -195,6 +195,7 @@ nav:
           - Command Results & Validation: device-command-results.md
           - Collect Support Bundle: collect-support-bundle.md
           - Set App Policy (App Blacklisting): set-app-policy.md
+          - MDM Policies: mdm-policies.md
           - Peripheral Discovery: peripheral-discovery.md
           - Configuration (MDM): device-configuration-mdm.md
       - Platform Integration:
