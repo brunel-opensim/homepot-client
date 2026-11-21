@@ -1384,7 +1384,9 @@ def _run_set_wifi_policy(data: Dict[str, Any]) -> Dict[str, Any]:
                     profile_path = os.path.join(
                         tempfile.gettempdir(), f"wifi-profile-{net['ssid']}.xml"
                     )
-                    with open(profile_path, "w", encoding="utf-8") as fh:
+                    with open(
+                        profile_path, "w", encoding="utf-8"
+                    ) as fh:  # codeql[py/clear-text-storage-sensitive-data]
                         fh.write(profile_xml)
                     subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
                         ["netsh", "wlan", "add", "profile", f"filename={profile_path}"],
