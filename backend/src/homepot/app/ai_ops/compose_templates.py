@@ -245,6 +245,19 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {},
         "description": "Return battery charge percentage, charging state, and estimated time remaining. Useful for battery-powered POS devices.",
     },
+    "SET_APP_POLICY": {
+        "label": "Set App Policy",
+        "action": "set_app_policy",
+        "group": "System",
+        "permission": "root_access",
+        "defaultData": {
+            "mode": "blocklist",
+            "apps": [{"name": "Example App", "process": "example.exe"}],
+            "enforce": True,
+            "notify_user": True,
+        },
+        "description": "Configure application allow/block policy. Block or allow specific apps by name/process. Kills running instances of blocked apps and persists the policy.",
+    },
     "COLLECT_SUPPORT_BUNDLE": {
         "label": "Collect Support Bundle",
         "action": "collect_support_bundle",
