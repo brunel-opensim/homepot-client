@@ -32,6 +32,13 @@ const STATUS_FILTERS = [
   { value: 'blocked', label: 'Blocked' },
 ];
 
+const PAGE_SIZE_DEFAULT = 100;
+const PAGE_SIZE_SUCCEEDED = 20;
+
+function pageSizeForFilter(statusFilter) {
+  return statusFilter === 'succeeded' ? PAGE_SIZE_SUCCEEDED : PAGE_SIZE_DEFAULT;
+}
+
 export default function AIProposalsList() {
   const [searchParams] = useSearchParams();
   // A `plan` query param deep-links from the Ask AI proposal card to the
@@ -40,6 +47,9 @@ export default function AIProposalsList() {
   const [plans, setPlans] = useState([]);
   const [statusFilter, setStatusFilter] = useState(highlightPlanId ? '' : 'pending_approval');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(0);
   const [busyPlan, setBusyPlan] = useState(null);
   const [toast, setToast] = useState(null);
   const [toastKey, setToastKey] = useState(0);
@@ -61,15 +71,20 @@ export default function AIProposalsList() {
 
   const fetchPlans = useCallback(async () => {
     const requestId = ++fetchRequestIdRef.current;
+    const limit = pageSizeForFilter(statusFilter);
     try {
       // Only show the full loading spinner on the very first load; subsequent
       // refreshes (including auto-refresh) keep the current list visible to
       // avoid flicker of the empty/loading state.
       if (initialLoadRef.current) setLoading(true);
-      const data = await api.aiProposals.list(statusFilter || null, 100, 0);
+      setLoadingMore(false);
+      const data = await api.aiProposals.list(statusFilter || null, limit, 0);
       // Ignore stale responses from earlier filters/requests.
       if (requestId !== fetchRequestIdRef.current) return;
-      setPlans(data.plans || []);
+      const nextPlans = data.plans || [];
+      setPlans(nextPlans);
+      setNextOffset(nextPlans.length);
+      setHasMore(nextPlans.length === limit);
     } catch (err) {
       if (requestId !== fetchRequestIdRef.current) return;
       console.error('Failed to load AI action plans:', err);
@@ -81,6 +96,35 @@ export default function AIProposalsList() {
       }
     }
   }, [statusFilter]);
+
+  const loadMorePlans = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    const requestId = fetchRequestIdRef.current;
+    const limit = pageSizeForFilter(statusFilter);
+    try {
+      setLoadingMore(true);
+      const data = await api.aiProposals.list(statusFilter || null, limit, nextOffset);
+      // If a reset/refresh happened while loading more, ignore this page.
+      if (requestId !== fetchRequestIdRef.current || statusFilter !== statusFilterRef.current)
+        return;
+      const morePlans = data.plans || [];
+      setPlans((prev) => {
+        const seen = new Set(prev.map((p) => p.plan_id));
+        const appended = morePlans.filter((p) => !seen.has(p.plan_id));
+        return appended.length ? [...prev, ...appended] : prev;
+      });
+      setNextOffset((prev) => prev + morePlans.length);
+      setHasMore(morePlans.length === limit);
+    } catch (err) {
+      if (requestId !== fetchRequestIdRef.current) return;
+      console.error('Failed to load more AI action plans:', err);
+      setToast({ type: 'error', message: apiHelpers.formatError(err) });
+    } finally {
+      if (requestId === fetchRequestIdRef.current) {
+        setLoadingMore(false);
+      }
+    }
+  }, [statusFilter, nextOffset, hasMore, loadingMore]);
 
   useEffect(() => {
     plansRef.current = plans;
@@ -467,6 +511,19 @@ export default function AIProposalsList() {
                   onApproveStep={(step) => handleApproveStep(plan.plan_id, step)}
                 />
               ))}
+              {hasMore && (
+                <div className="flex justify-center pt-2 pb-4">
+                  <Button
+                    variant="ghost"
+                    onClick={loadMorePlans}
+                    disabled={loadingMore}
+                    className="text-gray-300 hover:text-white hover:bg-gray-700/40"
+                  >
+                    {loadingMore ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    {loadingMore ? 'Loading...' : 'Load more'}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
