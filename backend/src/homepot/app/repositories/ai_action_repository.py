@@ -14,8 +14,8 @@ any backend context.
 from typing import Any, Dict, Iterable, List, Optional, cast
 import uuid
 
-from sqlalchemy import func, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session, selectinload
 
 from homepot.app.ai_ops.approval import requires_step_approval
 from homepot.app.ai_ops.retry import DEFAULT_MAX_RETRIES
@@ -25,6 +25,38 @@ from homepot.app.models.AnalyticsModel import (
     AIActionStep,
 )
 from homepot.models import PAIRED_LIFECYCLE_STATES, Device
+
+
+def _plan_activity_time(plan: Any) -> Any:
+    """Return the best timestamp for when a plan last meaningfully changed.
+
+    Terminal plans are ordered by when they settled (outcome recorded or
+    last step completed) so a just-succeeded plan surfaces immediately,
+    rather than by when it was originally proposed.
+    """
+    from datetime import datetime as _dt
+
+    outcome = getattr(plan, "outcome", None)
+    recorded_at = getattr(outcome, "recorded_at", None) if outcome else None
+    if isinstance(recorded_at, _dt):
+        return recorded_at
+    step_times = [
+        completed_at
+        for completed_at in (
+            getattr(step, "completed_at", None)
+            for step in (getattr(plan, "steps", None) or [])
+        )
+        if isinstance(completed_at, _dt)
+    ]
+    if step_times:
+        return max(step_times)
+    updated_at = getattr(plan, "updated_at", None)
+    if isinstance(updated_at, _dt):
+        return updated_at
+    created_at = getattr(plan, "created_at", None)
+    if isinstance(created_at, _dt):
+        return created_at
+    return _dt.min
 
 
 class AIActionRepository:
@@ -294,34 +326,6 @@ class AIActionRepository:
             status_val = str(plan.status)
             by_status[status_val] = by_status.get(status_val, 0) + 1
 
-        def _plan_activity_time(plan: AIActionPlan) -> datetime:
-            """Return the best timestamp for when a plan last meaningfully changed.
-
-            Terminal plans are ordered by when they settled (outcome recorded or
-            last step completed) so a just-succeeded plan surfaces immediately,
-            rather than by when it was originally proposed.
-            """
-            outcome = getattr(plan, "outcome", None)
-            recorded_at = getattr(outcome, "recorded_at", None) if outcome else None
-            if isinstance(recorded_at, datetime):
-                return recorded_at
-            step_times = [
-                completed_at
-                for completed_at in (
-                    getattr(step, "completed_at", None) for step in (plan.steps or [])
-                )
-                if isinstance(completed_at, datetime)
-            ]
-            if step_times:
-                return max(step_times)
-            updated_at = getattr(plan, "updated_at", None)
-            if isinstance(updated_at, datetime):
-                return updated_at
-            created_at = getattr(plan, "created_at", None)
-            if isinstance(created_at, datetime):
-                return created_at
-            return datetime.min
-
         recent_source = counted
         if recent_status is not None:
             recent_source = [p for p in counted if str(p.status) == recent_status]
@@ -404,10 +408,7 @@ class AIActionRepository:
         blast-radius scoping arrives with the policy engine in Phase 3.
         ``None`` means "no scope filter" (admin).
         """
-        stmt = select(AIActionPlan).order_by(
-            func.coalesce(AIActionPlan.updated_at, AIActionPlan.created_at).desc(),
-            AIActionPlan.created_at.desc(),
-        )
+        stmt = select(AIActionPlan)
         if statuses is not None:
             status_list = list(statuses)
             if not status_list:
@@ -431,8 +432,20 @@ class AIActionRepository:
             )
             stmt = stmt.where(AIActionPlan.plan_id.in_(scoped))
 
-        stmt = stmt.limit(limit).offset(offset)
-        return list(self.db.execute(stmt).scalars().all())
+        # Order by the same activity/settled time used by plan_summary so the
+        # main proposals list matches the "Recent delegated tasks" ordering
+        # (outcome recorded_at -> last step completed_at -> updated_at ->
+        # created_at), rather than a coarser updated_at/created_at sort.
+        stmt = stmt.options(
+            selectinload(AIActionPlan.steps), selectinload(AIActionPlan.outcome)
+        )
+        plans = list(self.db.execute(stmt).scalars().all())
+        plans.sort(key=_plan_activity_time, reverse=True)
+        if offset:
+            plans = plans[offset:]
+        if limit is not None:
+            plans = plans[:limit]
+        return plans
 
     def _paired_device_ids(self) -> List[str]:
         """Return business device_ids whose lifecycle state counts as paired.
