@@ -679,6 +679,62 @@ async def pending_commands_loop(
                     else:
                         try:
                             result = process_command(command, cached_permissions)
+                            # For collect_support_bundle, upload the zip to the
+                            # backend so technicians can download it centrally.
+                            if (
+                                command.get("command_type") == "collect_support_bundle"
+                                and isinstance(result, dict)
+                                and result.get("status") == "completed"
+                            ):
+                                res = result.get("result", {})
+                                zip_path = (
+                                    res.get("path") if isinstance(res, dict) else None
+                                )
+                                if zip_path and os.path.exists(zip_path):
+                                    try:
+                                        upload_url = (
+                                            f"{config['backend_url'].rstrip('/')}"
+                                            f"/api/v1/devices/{device_id}/support-bundle"
+                                        )
+                                        headers = get_auth_headers(config)
+                                        with open(zip_path, "rb") as fh:
+                                            files = {
+                                                "file": (
+                                                    os.path.basename(zip_path),
+                                                    fh,
+                                                    "application/zip",
+                                                )
+                                            }
+                                            data = {"command_id": cid}
+                                            resp = await client.post(
+                                                upload_url,
+                                                headers=headers,
+                                                files=files,
+                                                data=data,
+                                                timeout=120.0,
+                                            )
+                                        if resp.status_code == 200:
+                                            upload_info = resp.json()
+                                            res["download_url"] = upload_info.get(
+                                                "download_url"
+                                            )
+                                            res["bundle_id"] = upload_info.get(
+                                                "bundle_id"
+                                            )
+                                            result["result"] = res
+                                            logger.info(
+                                                "Support bundle uploaded: %s",
+                                                upload_info.get("download_url"),
+                                            )
+                                        else:
+                                            logger.warning(
+                                                "Support bundle upload failed: HTTP %d",
+                                                resp.status_code,
+                                            )
+                                    except Exception as exc:  # noqa: BLE001
+                                        logger.warning(
+                                            "Support bundle upload failed: %s", exc
+                                        )
                             # Emit command execution event to Live Logs
                             try:
                                 from homepot.agent.utils.event_reporter import (
