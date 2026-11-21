@@ -248,7 +248,7 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "SET_APP_POLICY": {
         "label": "Set App Policy",
         "action": "set_app_policy",
-        "group": "System",
+        "group": "Policies",
         "permission": "root_access",
         "defaultData": {
             "mode": "blocklist",

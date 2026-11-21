@@ -284,7 +284,7 @@ const FALLBACK_COMMAND_TEMPLATES = {
   SET_APP_POLICY: {
     label: 'Set App Policy',
     action: 'set_app_policy',
-    group: 'System',
+    group: 'Policies',
     permission: 'root_access',
     defaultData: {
       mode: 'blocklist',
@@ -386,6 +386,7 @@ const COMMAND_GROUP_ORDER = [
   'Programs',
   'Services & Agent',
   'System',
+  'Policies',
 ];
 
 // Group a templates dict by its `group` field into ordered [label, entries] pairs.
