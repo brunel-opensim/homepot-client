@@ -664,6 +664,7 @@ async def pending_commands_loop(
                     "run_command",
                     "run_script",
                     "status_request",
+                    "restart_agent",
                 }:
                     app = cast("FastAPI", ipc_server.config.app)  # type: ignore[union-attr]
                     push_pending_command(app, command)
