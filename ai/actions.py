@@ -353,6 +353,33 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "set_app_policy": ActionSpec(
+        name="set_app_policy",
+        command_type="set_app_policy",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="root_access",
+        description=(
+            "Configure application allow/block policy on the device. Supports "
+            "blocklist (block specific apps) and allowlist (only allow specific "
+            "apps) modes. Kills running instances of blocked apps and persists "
+            "the policy. Read-only diagnostic; requires root_access."
+        ),
+        required_params=("mode", "apps"),
+    ),
+    "set_wifi_policy": ActionSpec(
+        name="set_wifi_policy",
+        command_type="set_wifi_policy",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="root_access",
+        description=(
+            "Configure Wi-Fi allow/block policy. Allowlist mode permits only "
+            "approved SSIDs; blocklist mode blocks specific SSIDs. Disconnects "
+            "from unauthorized networks and persists policy. Requires root_access."
+        ),
+        required_params=("mode", "networks"),
+    ),
     "collect_support_bundle": ActionSpec(
         name="collect_support_bundle",
         command_type="collect_support_bundle",

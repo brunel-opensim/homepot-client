@@ -245,6 +245,34 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {},
         "description": "Return battery charge percentage, charging state, and estimated time remaining. Useful for battery-powered POS devices.",
     },
+    "SET_APP_POLICY": {
+        "label": "Set App Policy",
+        "action": "set_app_policy",
+        "group": "Policies",
+        "permission": "root_access",
+        "defaultData": {
+            "mode": "blocklist",
+            "apps": [{"name": "Example App", "process": "example.exe"}],
+            "enforce": True,
+            "notify_user": True,
+        },
+        "description": "Configure application allow/block policy. Block or allow specific apps by name/process. Kills running instances of blocked apps and persists the policy.",
+    },
+    "SET_WIFI_POLICY": {
+        "label": "Set Wi-Fi Policy",
+        "action": "set_wifi_policy",
+        "group": "Policies",
+        "permission": "root_access",
+        "defaultData": {
+            "mode": "allowlist",
+            "networks": [
+                {"ssid": "ApprovedNetwork", "security": "WPA2", "password": "secret"}
+            ],
+            "enforce": True,
+            "auto_connect": True,
+        },
+        "description": "Configure Wi-Fi allow/block policy. Allowlist permits only approved SSIDs; blocklist blocks specific SSIDs. Disconnects from unauthorized networks.",
+    },
     "COLLECT_SUPPORT_BUNDLE": {
         "label": "Collect Support Bundle",
         "action": "collect_support_bundle",

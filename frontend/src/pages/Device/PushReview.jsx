@@ -281,6 +281,34 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Return battery charge percentage, charging state, and estimated time remaining. Useful for battery-powered POS devices.',
   },
+  SET_APP_POLICY: {
+    label: 'Set App Policy',
+    action: 'set_app_policy',
+    group: 'Policies',
+    permission: 'root_access',
+    defaultData: {
+      mode: 'blocklist',
+      apps: [{ name: 'Example App', process: 'example.exe' }],
+      enforce: true,
+      notify_user: true,
+    },
+    description:
+      'Configure application allow/block policy. Block or allow specific apps by name/process. Kills running instances of blocked apps.',
+  },
+  SET_WIFI_POLICY: {
+    label: 'Set Wi-Fi Policy',
+    action: 'set_wifi_policy',
+    group: 'Policies',
+    permission: 'root_access',
+    defaultData: {
+      mode: 'allowlist',
+      networks: [{ ssid: 'ApprovedNetwork', security: 'WPA2', password: 'secret' }],
+      enforce: true,
+      auto_connect: true,
+    },
+    description:
+      'Configure Wi-Fi allow/block policy. Allowlist permits only approved SSIDs; blocklist blocks specific SSIDs.',
+  },
   COLLECT_SUPPORT_BUNDLE: {
     label: 'Collect Support Bundle',
     action: 'collect_support_bundle',
@@ -372,6 +400,7 @@ const COMMAND_GROUP_ORDER = [
   'Programs',
   'Services & Agent',
   'System',
+  'Policies',
 ];
 
 // Group a templates dict by its `group` field into ordered [label, entries] pairs.
