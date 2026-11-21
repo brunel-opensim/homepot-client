@@ -63,6 +63,7 @@ def test_registry_declares_expected_actions():
         "network_test",
         "list_sessions",
         "get_system_info",
+        "get_battery_status",
         "collect_support_bundle",
         "notify_user",
         "disk_cleanup",
@@ -99,6 +100,7 @@ def test_registry_declares_expected_actions():
         "network_test",
         "list_sessions",
         "get_system_info",
+        "get_battery_status",
         "collect_support_bundle",
     ):
         assert ACTION_REGISTRY[name].risk_tier == "T1"

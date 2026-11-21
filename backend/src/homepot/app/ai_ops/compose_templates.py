@@ -237,6 +237,14 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {},
         "description": "Return a hardware/OS inventory snapshot (CPU, RAM, OS build, and on Windows serial/model/GPU).",
     },
+    "GET_BATTERY_STATUS": {
+        "label": "Get Battery Status",
+        "action": "get_battery_status",
+        "group": "Diagnostics",
+        "permission": "command_execution",
+        "defaultData": {},
+        "description": "Return battery charge percentage, charging state, and estimated time remaining. Useful for battery-powered POS devices.",
+    },
     "COLLECT_SUPPORT_BUNDLE": {
         "label": "Collect Support Bundle",
         "action": "collect_support_bundle",
