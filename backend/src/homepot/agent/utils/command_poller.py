@@ -53,6 +53,7 @@ COMMAND_TYPES = frozenset(
         "network_test",
         "list_sessions",
         "get_system_info",
+        "get_battery_status",
         "notify_user",
         "collect_support_bundle",
         "disk_cleanup",
@@ -93,6 +94,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "network_test": "network_monitoring",
     "list_sessions": "command_execution",
     "get_system_info": "command_execution",
+    "get_battery_status": "command_execution",
     "notify_user": "command_execution",
     "collect_support_bundle": "command_execution",
     "disk_cleanup": "command_execution",
@@ -1016,6 +1018,61 @@ def _run_get_system_info(data: Dict[str, Any]) -> Dict[str, Any]:
         info.update(_windows_system_info())
 
     return {"status": "completed", "result": info}
+
+
+# --- get_battery_status -----------------------------------------------------
+
+
+def _run_get_battery_status(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return battery charge and charging state (read-only, cross-platform).
+
+    Uses ``psutil.sensors_battery()`` for the portable core. On Windows, also
+    queries WMI for battery status when available.
+    """
+    result: Dict[str, Any] = {}
+    try:
+        battery = psutil.sensors_battery()
+        if battery is not None:
+            result["percent"] = round(float(battery.percent), 1)
+            result["charging"] = bool(battery.power_plugged)
+            result["seconds_left"] = (
+                int(battery.secsleft)
+                if battery.secsleft and battery.secsleft > 0
+                else None
+            )
+            result["has_battery"] = True
+        else:
+            result["has_battery"] = False
+            result["percent"] = None
+            result["charging"] = None
+            result["seconds_left"] = None
+    except Exception:  # noqa: BLE001 - best-effort field
+        result["has_battery"] = None
+        result["percent"] = None
+        result["charging"] = None
+        result["seconds_left"] = None
+        result["error"] = "battery sensor unavailable"
+
+    if _is_windows_platform():
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "Get-CimInstance Win32_Battery | Select-Object -ExpandProperty EstimatedChargeRemaining",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip()
+            if val.isdigit():
+                result["windows_charge_percent"] = int(val)
+        except Exception:  # noqa: BLE001 - best-effort field
+            pass
+
+    return {"status": "completed", "result": result}
 
 
 # --- notify_user ------------------------------------------------------------
@@ -2983,6 +3040,9 @@ def _process_command_impl(
     if command_type == "get_system_info":
         return _run_get_system_info(_command_data(command))
 
+    if command_type == "get_battery_status":
+        return _run_get_battery_status(_command_data(command))
+
     if command_type == "notify_user":
         return _run_notify_user(_command_data(command))
 
@@ -3108,6 +3168,7 @@ _DESCRIPTIVE_COMMANDS = {
     "list_drives": "list mounted drives and free space",
     "list_sessions": "list users logged into the device",
     "get_system_info": "collect a hardware/OS inventory snapshot",
+    "get_battery_status": "read battery charge and charging state",
     "tail_system_log": "read recent OS error/warning events",
     "network_test": "test network connectivity to a host",
     "restart_agent": "restart the agent process",

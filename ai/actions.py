@@ -341,6 +341,18 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "get_battery_status": ActionSpec(
+        name="get_battery_status",
+        command_type="get_battery_status",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        description=(
+            "Return battery charge percentage, charging state, and estimated "
+            "time remaining. Read-only; useful for battery-powered POS devices."
+        ),
+        required_params=(),
+    ),
     "collect_support_bundle": ActionSpec(
         name="collect_support_bundle",
         command_type="collect_support_bundle",
