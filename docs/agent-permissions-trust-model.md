@@ -87,6 +87,13 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 | `run_script` | `root_access` | Manage | always runs via `sudo` |
 | `run_command_unprivileged` | `command_execution` | Monitor | shell command in the device user context (Remote Access) |
 | `scan_filesystem` | `root_access` | Manage | full filesystem scan |
+| `set_app_policy` | `root_access` | Manage | configure app allow/block list (kill blocked apps, persist policy) |
+| `restart_agent` | `root_access` | Manage | restart the agent process |
+| `restart_service` | `root_access` | Manage | restart a named OS service |
+| `set_service_state` | `root_access` | Manage | enable/disable/start/stop a named OS service |
+| `update_app` | `root_access` | Manage | update the User App to latest release |
+| `rollback_app` | `root_access` | Manage | roll back the User App to previous release |
+| `bootstrap_winget` | `root_access` | Manage | ensure winget is installed (Windows) |
 | `update_config` | `root_access` | Manage | config / firmware / settings |
 | `restart` | `root_access` | Manage | reboot the host system |
 | `shutdown` | `root_access` | Manage | power off the host system |
@@ -100,6 +107,15 @@ command/script execution is elevated — it runs through `sudo` and is gated on
 | `list_processes` | `process_monitoring` | Monitor | view running processes |
 | `list_connections` | `network_monitoring` | Monitor | view network connections |
 | `list_installed_programs` | `command_execution` | Monitor | list installed programs via winget (Windows) |
+| `get_system_info` | `command_execution` | Monitor | hardware/OS inventory snapshot |
+| `get_battery_status` | `command_execution` | Monitor | battery charge, charging state, time remaining (POS devices) |
+| `list_drives` | `command_execution` | Monitor | list mounted drives and free space |
+| `list_sessions` | `command_execution` | Monitor | list users logged into the device |
+| `tail_system_log` | `command_execution` | Monitor | recent OS errors (Event Log / journalctl) |
+| `collect_support_bundle` | `command_execution` | Monitor | zip hardware/OS, disk, process, metrics, logs into support artifact |
+| `notify_user` | `command_execution` | Monitor | show a message to the person at the device |
+| `disk_cleanup` | `command_execution` | Monitor | clear old temp files and caches |
+| `lock_screen` | `command_execution` | Monitor | lock the terminal screen |
 
 ### Non-privileged commands
 
