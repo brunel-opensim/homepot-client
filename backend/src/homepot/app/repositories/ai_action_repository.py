@@ -346,7 +346,11 @@ class AIActionRepository:
                 "step_count": len(p.steps),
                 "target_device_id": (p.steps[0].target_device_id if p.steps else None),
             }
-            for p in sorted(recent_source, key=_plan_activity_time, reverse=True)[:10]
+            for p in sorted(
+                recent_source,
+                key=lambda p: (_plan_activity_time(p), str(p.plan_id)),
+                reverse=True,
+            )[:10]
         ]
 
         return {
@@ -440,7 +444,9 @@ class AIActionRepository:
             selectinload(AIActionPlan.steps), selectinload(AIActionPlan.outcome)
         )
         plans = list(self.db.execute(stmt).scalars().all())
-        plans.sort(key=_plan_activity_time, reverse=True)
+        # Stable secondary key (plan_id) keeps pagination deterministic when
+        # two plans share the same activity time.
+        plans.sort(key=lambda p: (_plan_activity_time(p), str(p.plan_id)), reverse=True)
         if offset:
             plans = plans[offset:]
         if limit is not None:
