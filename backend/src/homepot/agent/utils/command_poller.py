@@ -54,6 +54,7 @@ COMMAND_TYPES = frozenset(
         "list_sessions",
         "get_system_info",
         "get_battery_status",
+        "set_battery_alert",
         "set_app_policy",
         "set_wifi_policy",
         "set_screen_lock_policy",
@@ -98,6 +99,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "list_sessions": "command_execution",
     "get_system_info": "command_execution",
     "get_battery_status": "command_execution",
+    "set_battery_alert": "command_execution",
     "set_app_policy": "root_access",
     "set_wifi_policy": "root_access",
     "set_screen_lock_policy": "root_access",
@@ -1604,6 +1606,128 @@ def _run_set_screen_lock_policy(data: Dict[str, Any]) -> Dict[str, Any]:
     if errors:
         result["errors"] = errors
         result["policy_applied"] = len(errors) == 0
+
+    return {"status": "completed", "result": result}
+
+
+# --- set_battery_alert ------------------------------------------------------
+
+
+def _run_set_battery_alert(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Configure battery low-charge alert policy (command_execution).
+
+    Sets the threshold percentage at which an alert is triggered and the
+    action to take (notify user, log, etc.). Persists policy to
+    ``battery_alert_policy.json``. The agent checks battery level on startup
+    and periodically.
+    """
+    threshold = data.get("threshold_percent")
+    if threshold is not None:
+        try:
+            threshold = int(threshold)
+        except (ValueError, TypeError):
+            return {
+                "status": "failed",
+                "result": {"error": "threshold_percent must be an integer"},
+            }
+        if threshold < 1 or threshold > 100:
+            return {
+                "status": "failed",
+                "result": {"error": "threshold_percent must be between 1 and 100"},
+            }
+
+    action = str(data.get("action", "notify")).lower()
+    if action not in ("notify", "shutdown", "log"):
+        return {
+            "status": "failed",
+            "result": {
+                "error": (
+                    f"action must be 'notify', 'shutdown', or 'log', " f"got '{action}'"
+                )
+            },
+        }
+
+    check_interval = data.get("check_interval_minutes")
+    if check_interval is not None:
+        try:
+            check_interval = int(check_interval)
+        except (ValueError, TypeError):
+            return {
+                "status": "failed",
+                "result": {"error": "check_interval_minutes must be an integer"},
+            }
+        if check_interval < 1 or check_interval > 1440:
+            return {
+                "status": "failed",
+                "result": {
+                    "error": "check_interval_minutes must be between 1 and 1440"
+                },
+            }
+
+    if threshold is None:
+        return {
+            "status": "failed",
+            "result": {"error": "threshold_percent is required"},
+        }
+
+    # Check current battery status
+    current_battery = None
+    try:
+        battery = psutil.sensors_battery()
+        if battery is not None:
+            current_battery = round(float(battery.percent), 1)
+    except Exception:  # noqa: BLE001
+        pass
+
+    alert_triggered = False
+    if current_battery is not None and current_battery <= threshold:
+        alert_triggered = True
+
+    # Persist policy file
+    policy_dir = _homepot_data_dir()
+    os.makedirs(policy_dir, exist_ok=True)
+    policy_path = os.path.join(policy_dir, "battery_alert_policy.json")
+    try:
+        policy = {
+            "threshold_percent": threshold,
+            "action": action,
+            "check_interval_minutes": check_interval or 5,
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        with open(policy_path, "w", encoding="utf-8") as fh:
+            json.dump(policy, fh, indent=2)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "status": "failed",
+            "result": {"error": f"failed to persist policy: {exc}"},
+        }
+
+    # If alert is triggered and action is notify, send notification
+    if alert_triggered and action == "notify":
+        try:
+            _run_notify_user(
+                {
+                    "title": "HOMEPOT Battery Alert",
+                    "message": (
+                        f"Battery at {current_battery}% "
+                        f"(threshold: {threshold}%). "
+                        "Please charge the device."
+                    ),
+                }
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    result: Dict[str, Any] = {
+        "threshold_percent": threshold,
+        "action": action,
+        "check_interval_minutes": check_interval or 5,
+        "current_battery_percent": current_battery,
+        "alert_triggered": alert_triggered,
+        "policy_applied": True,
+        "policy_path": policy_path,
+        "platform": platform.system(),
+    }
 
     return {"status": "completed", "result": result}
 
@@ -3585,6 +3709,9 @@ def _process_command_impl(
     if command_type == "get_battery_status":
         return _run_get_battery_status(_command_data(command))
 
+    if command_type == "set_battery_alert":
+        return _run_set_battery_alert(_command_data(command))
+
     if command_type == "set_app_policy":
         return _run_set_app_policy(_command_data(command))
 
@@ -3720,6 +3847,7 @@ _DESCRIPTIVE_COMMANDS = {
     "list_sessions": "list users logged into the device",
     "get_system_info": "collect a hardware/OS inventory snapshot",
     "get_battery_status": "read battery charge and charging state",
+    "set_battery_alert": "configure battery low-charge alert threshold",
     "set_app_policy": "configure application allow/block list",
     "set_wifi_policy": "configure Wi-Fi allow/block list",
     "set_screen_lock_policy": "configure screen lock timeout and requirements",
