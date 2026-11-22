@@ -523,8 +523,7 @@ async def _report_status_to_live_logs(
         f"cpu {report.get('cpu_usage')}% | "
         f"mem {report.get('memory_usage')}% | "
         f"disk {report.get('disk_usage')}% | "
-        f"host {report.get('hostname', '')} | "
-        f"os {report.get('os_details', '')}"
+        f"host {report.get('hostname', '')}"
     )
     battery = report.get("battery_percent")
     if battery is not None:
