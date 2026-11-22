@@ -527,6 +527,10 @@ async def _report_status_to_live_logs(
         f"os {report.get('os_details', '')} | "
         f"ip {report.get('local_ip', '')}"
     )
+    battery = report.get("battery_percent")
+    if battery is not None:
+        charging = " (charging)" if report.get("battery_charging") else ""
+        message += f" | bat {battery}%{charging}"
     payload = {
         "device_id": config["device_id"],
         "level": "info",
@@ -1420,6 +1424,8 @@ async def live_logs_loop(
                     "memory_usage": report.get("memory_usage"),
                     "disk_usage": report.get("disk_usage"),
                     "uptime_seconds": report.get("uptime_seconds"),
+                    "battery_percent": report.get("battery_percent"),
+                    "battery_charging": report.get("battery_charging"),
                 },
                 sort_keys=True,
             )

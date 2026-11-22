@@ -3816,6 +3816,16 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     metrics = collect_system_telemetry()
+    # Battery snapshot (best-effort; None when no battery present)
+    battery_percent = None
+    battery_charging = None
+    try:
+        bat = psutil.sensors_battery()
+        if bat is not None:
+            battery_percent = round(float(bat.percent), 1)
+            battery_charging = bool(bat.power_plugged)
+    except Exception:  # noqa: BLE001
+        pass
     return {
         "device_id": config["device_id"],
         "device_name": config.get("device_name", ""),
@@ -3830,6 +3840,8 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
         "cpu_usage": metrics["cpu_usage"],
         "memory_usage": metrics["memory_usage"],
         "disk_usage": metrics["disk_usage"],
+        "battery_percent": battery_percent,
+        "battery_charging": battery_charging,
         "timestamp": utc_now_iso(),
     }
 
