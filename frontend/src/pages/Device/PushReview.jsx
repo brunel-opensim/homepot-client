@@ -295,6 +295,20 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Configure application allow/block policy. Block or allow specific apps by name/process. Kills running instances of blocked apps.',
   },
+  SET_WIFI_POLICY: {
+    label: 'Set Wi-Fi Policy',
+    action: 'set_wifi_policy',
+    group: 'Policies',
+    permission: 'root_access',
+    defaultData: {
+      mode: 'allowlist',
+      networks: [{ ssid: 'ApprovedNetwork', security: 'WPA2', password: 'secret' }],
+      enforce: true,
+      auto_connect: true,
+    },
+    description:
+      'Configure Wi-Fi allow/block policy. Allowlist permits only approved SSIDs; blocklist blocks specific SSIDs.',
+  },
   COLLECT_SUPPORT_BUNDLE: {
     label: 'Collect Support Bundle',
     action: 'collect_support_bundle',

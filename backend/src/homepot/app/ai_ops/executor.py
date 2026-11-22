@@ -72,6 +72,11 @@ _AI_COMMAND_TITLES = {
     "run_command": "Run Command",
     "run_command_unprivileged": "Run Command",
     "run_script": "Run Script",
+    "get_battery_status": "Get Battery Status",
+    "set_app_policy": "Set App Policy",
+    "set_wifi_policy": "Set Wi-Fi Policy",
+    "collect_support_bundle": "Collect Support Bundle",
+    "get_system_info": "Get System Info",
 }
 
 
