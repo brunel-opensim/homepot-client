@@ -8,6 +8,7 @@ from pathlib import Path
 import platform
 import secrets
 import signal
+import socket
 import ssl
 import sys
 import threading
@@ -522,8 +523,7 @@ async def _report_status_to_live_logs(
         f"uptime {int(uptime)}s | "
         f"cpu {report.get('cpu_usage')}% | "
         f"mem {report.get('memory_usage')}% | "
-        f"disk {report.get('disk_usage')}% | "
-        f"host {report.get('hostname', '')}"
+        f"disk {report.get('disk_usage')}%"
     )
     battery = report.get("battery_percent")
     if battery is not None:
@@ -1073,6 +1073,7 @@ async def send_registration(
             "firmware_version": _firmware_version(),
             "agent_version": config.get("app_version"),
             "local_ip": get_local_ip(),
+            "hostname": socket.gethostname(),
             "wan_ip": get_wan_ip(),
             "peripherals": get_connected_peripherals(),
         }

@@ -584,6 +584,10 @@ export const DeviceInfoWidget = ({ device }) => (
         </span>
       </div>
       <div className="flex justify-between">
+        <span className="text-slate-400">Hostname</span>
+        <span className="text-slate-200 font-mono">{device?.hostname || 'N/A'}</span>
+      </div>
+      <div className="flex justify-between">
         <span className="text-slate-400">MAC Address</span>
         <span className="text-slate-200 font-mono">{device?.mac_address || 'N/A'}</span>
       </div>

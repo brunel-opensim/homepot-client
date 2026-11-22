@@ -540,6 +540,7 @@ async def get_device(
                 or (device.config.get("mac_address") if device.config else "N/A"),
                 "local_ip": device.local_ip
                 or (device.config.get("local_ip") if device.config else "N/A"),
+                "hostname": (device.config.get("hostname") if device.config else "N/A"),
                 "wan_ip": device.wan_ip
                 or (device.config.get("wan_ip") if device.config else "N/A"),
                 "os_details": device.os_details
