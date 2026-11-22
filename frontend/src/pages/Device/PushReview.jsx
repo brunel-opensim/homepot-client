@@ -309,6 +309,18 @@ const FALLBACK_COMMAND_TEMPLATES = {
     description:
       'Configure Wi-Fi allow/block policy. Allowlist permits only approved SSIDs; blocklist blocks specific SSIDs.',
   },
+  SET_SCREEN_LOCK_POLICY: {
+    label: 'Set Screen Lock Policy',
+    action: 'set_screen_lock_policy',
+    group: 'Policies',
+    permission: 'root_access',
+    defaultData: {
+      timeout_minutes: 5,
+      require_password: true,
+    },
+    description:
+      'Configure screen lock: inactivity timeout before lock and whether a PIN/password is required to unlock.',
+  },
   COLLECT_SUPPORT_BUNDLE: {
     label: 'Collect Support Bundle',
     action: 'collect_support_bundle',

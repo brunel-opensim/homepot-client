@@ -75,6 +75,7 @@ _AI_COMMAND_TITLES = {
     "get_battery_status": "Get Battery Status",
     "set_app_policy": "Set App Policy",
     "set_wifi_policy": "Set Wi-Fi Policy",
+    "set_screen_lock_policy": "Set Screen Lock Policy",
     "collect_support_bundle": "Collect Support Bundle",
     "get_system_info": "Get System Info",
 }

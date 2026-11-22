@@ -367,6 +367,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=("mode", "apps"),
     ),
+    "set_screen_lock_policy": ActionSpec(
+        name="set_screen_lock_policy",
+        command_type="set_screen_lock_policy",
+        risk_tier="T2",
+        reversible=True,
+        required_permission="root_access",
+        description=(
+            "Configure screen lock policy: inactivity timeout before lock and "
+            "whether a PIN/password is required to unlock. Persists policy. "
+            "Requires root_access."
+        ),
+        required_params=(),
+    ),
     "set_wifi_policy": ActionSpec(
         name="set_wifi_policy",
         command_type="set_wifi_policy",

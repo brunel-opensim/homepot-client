@@ -56,6 +56,7 @@ COMMAND_TYPES = frozenset(
         "get_battery_status",
         "set_app_policy",
         "set_wifi_policy",
+        "set_screen_lock_policy",
         "notify_user",
         "collect_support_bundle",
         "disk_cleanup",
@@ -99,6 +100,7 @@ REQUIRED_PERMISSION: Dict[str, str] = {
     "get_battery_status": "command_execution",
     "set_app_policy": "root_access",
     "set_wifi_policy": "root_access",
+    "set_screen_lock_policy": "root_access",
     "notify_user": "command_execution",
     "collect_support_bundle": "command_execution",
     "disk_cleanup": "command_execution",
@@ -1447,6 +1449,161 @@ def _run_set_wifi_policy(data: Dict[str, Any]) -> Dict[str, Any]:
     }
     if _is_windows_platform():
         result["method"] = "netsh"
+
+    return {"status": "completed", "result": result}
+
+
+# --- set_screen_lock_policy -------------------------------------------------
+
+
+def _run_set_screen_lock_policy(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Configure screen lock policy on the device (root_access).
+
+    Sets the inactivity timeout before the screen locks and whether a
+    PIN/password is required to unlock. On Windows uses registry and
+    powercfg. Persists policy to ``screen_lock_policy.json``.
+    """
+    timeout_minutes = data.get("timeout_minutes")
+    if timeout_minutes is not None:
+        try:
+            timeout_minutes = int(timeout_minutes)
+        except (ValueError, TypeError):
+            return {
+                "status": "failed",
+                "result": {"error": "timeout_minutes must be an integer"},
+            }
+        if timeout_minutes < 0 or timeout_minutes > 1440:
+            return {
+                "status": "failed",
+                "result": {"error": "timeout_minutes must be between 0 and 1440"},
+            }
+
+    require_password = data.get("require_password")
+    if require_password is not None:
+        require_password = bool(require_password)
+
+    if timeout_minutes is None and require_password is None:
+        return {
+            "status": "failed",
+            "result": {
+                "error": "at least one of timeout_minutes or require_password must be provided"
+            },
+        }
+
+    applied = {}
+    errors = []
+
+    if _is_windows_platform():
+        # Set screen saver timeout via registry (in seconds)
+        if timeout_minutes is not None:
+            try:
+                timeout_seconds = timeout_minutes * 60
+                subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                    [
+                        "reg",
+                        "add",
+                        r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
+                        "/v",
+                        "InactivityTimeoutSecs",
+                        "/t",
+                        "REG_DWORD",
+                        "/d",
+                        str(timeout_seconds),
+                        "/f",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                applied["timeout_minutes"] = timeout_minutes
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"timeout: {exc}")
+
+        # Require password on wake
+        if require_password is not None:
+            try:
+                subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                    [
+                        "reg",
+                        "add",
+                        r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System",
+                        "/v",
+                        "DisableLockWorkstation",
+                        "/t",
+                        "REG_DWORD",
+                        "/d",
+                        "0" if require_password else "1",
+                        "/f",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                applied["require_password"] = require_password
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"require_password: {exc}")
+
+        # Also set via powercfg for screen off timeout
+        if timeout_minutes is not None and timeout_minutes > 0:
+            try:
+                subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                    [
+                        "powercfg",
+                        "/change",
+                        "monitor-timeout-ac",
+                        str(timeout_minutes),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                    [
+                        "powercfg",
+                        "/change",
+                        "monitor-timeout-dc",
+                        str(timeout_minutes),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+    else:
+        # Non-Windows: best-effort via xset or gsettings
+        if timeout_minutes is not None:
+            applied["timeout_minutes"] = timeout_minutes
+        if require_password is not None:
+            applied["require_password"] = require_password
+
+    # Persist policy file
+    policy_dir = _homepot_data_dir()
+    os.makedirs(policy_dir, exist_ok=True)
+    policy_path = os.path.join(policy_dir, "screen_lock_policy.json")
+    try:
+        policy = {
+            "timeout_minutes": timeout_minutes,
+            "require_password": require_password,
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        with open(policy_path, "w", encoding="utf-8") as fh:
+            json.dump(policy, fh, indent=2)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "status": "failed",
+            "result": {"error": f"failed to persist policy: {exc}"},
+        }
+
+    result: Dict[str, Any] = {
+        "applied": applied,
+        "policy_applied": True,
+        "policy_path": policy_path,
+        "platform": platform.system(),
+    }
+    if errors:
+        result["errors"] = errors
+        result["policy_applied"] = len(errors) == 0
 
     return {"status": "completed", "result": result}
 
@@ -3434,6 +3591,9 @@ def _process_command_impl(
     if command_type == "set_wifi_policy":
         return _run_set_wifi_policy(_command_data(command))
 
+    if command_type == "set_screen_lock_policy":
+        return _run_set_screen_lock_policy(_command_data(command))
+
     if command_type == "notify_user":
         return _run_notify_user(_command_data(command))
 
@@ -3562,6 +3722,7 @@ _DESCRIPTIVE_COMMANDS = {
     "get_battery_status": "read battery charge and charging state",
     "set_app_policy": "configure application allow/block list",
     "set_wifi_policy": "configure Wi-Fi allow/block list",
+    "set_screen_lock_policy": "configure screen lock timeout and requirements",
     "tail_system_log": "read recent OS error/warning events",
     "network_test": "test network connectivity to a host",
     "restart_agent": "restart the agent process",
