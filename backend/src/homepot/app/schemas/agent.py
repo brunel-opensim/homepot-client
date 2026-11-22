@@ -21,6 +21,7 @@ class AgentRegisterRequest(BaseModel):
     os_details: Optional[str] = Field(
         None, description="Operating system name and version"
     )
+    hostname: Optional[str] = Field(None, description="Device hostname")
     local_ip: Optional[str] = Field(None, description="Local network IP address")
     wan_ip: Optional[str] = Field(None, description="Public/WAN IP address")
     firmware_version: Optional[str] = Field(
