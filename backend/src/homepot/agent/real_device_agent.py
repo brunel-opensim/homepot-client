@@ -524,8 +524,7 @@ async def _report_status_to_live_logs(
         f"mem {report.get('memory_usage')}% | "
         f"disk {report.get('disk_usage')}% | "
         f"host {report.get('hostname', '')} | "
-        f"os {report.get('os_details', '')} | "
-        f"ip {report.get('local_ip', '')}"
+        f"os {report.get('os_details', '')}"
     )
     battery = report.get("battery_percent")
     if battery is not None:
