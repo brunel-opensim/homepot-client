@@ -341,6 +341,19 @@ ACTION_REGISTRY: Dict[str, ActionSpec] = {
         ),
         required_params=(),
     ),
+    "set_battery_alert": ActionSpec(
+        name="set_battery_alert",
+        command_type="set_battery_alert",
+        risk_tier="T1",
+        reversible=True,
+        required_permission="command_execution",
+        description=(
+            "Configure battery low-charge alert: threshold percentage, action "
+            "(notify/shutdown/log), and check interval. Persists policy. "
+            "Read-only diagnostic; requires command_execution."
+        ),
+        required_params=("threshold_percent",),
+    ),
     "get_battery_status": ActionSpec(
         name="get_battery_status",
         command_type="get_battery_status",

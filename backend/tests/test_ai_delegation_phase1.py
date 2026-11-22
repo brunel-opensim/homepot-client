@@ -64,6 +64,7 @@ def test_registry_declares_expected_actions():
         "list_sessions",
         "get_system_info",
         "get_battery_status",
+        "set_battery_alert",
         "set_app_policy",
         "set_wifi_policy",
         "set_screen_lock_policy",
@@ -104,6 +105,7 @@ def test_registry_declares_expected_actions():
         "list_sessions",
         "get_system_info",
         "get_battery_status",
+        "set_battery_alert",
         "collect_support_bundle",
     ):
         assert ACTION_REGISTRY[name].risk_tier == "T1"

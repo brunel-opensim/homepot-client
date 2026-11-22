@@ -245,6 +245,18 @@ COMPOSE_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "defaultData": {},
         "description": "Return battery charge percentage, charging state, and estimated time remaining. Useful for battery-powered POS devices.",
     },
+    "SET_BATTERY_ALERT": {
+        "label": "Set Battery Alert",
+        "action": "set_battery_alert",
+        "group": "Policies",
+        "permission": "command_execution",
+        "defaultData": {
+            "threshold_percent": 20,
+            "action": "notify",
+            "check_interval_minutes": 5,
+        },
+        "description": "Configure battery low-charge alert: threshold, action (notify/shutdown/log), and check interval.",
+    },
     "SET_APP_POLICY": {
         "label": "Set App Policy",
         "action": "set_app_policy",
