@@ -13,6 +13,8 @@ import {
   History,
   Activity,
   AlertTriangle,
+  Copy,
+  Check,
 } from 'lucide-react';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -232,6 +234,7 @@ export default function Device() {
   const [pushMessage, setPushMessage] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
+  const [copiedDeviceId, setCopiedDeviceId] = useState(null);
 
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
@@ -594,6 +597,19 @@ export default function Device() {
       }
     } catch (err) {
       console.error('Failed to initiate connection:', err);
+    }
+  };
+
+  const handleCopyDeviceId = async (e) => {
+    if (e) e.stopPropagation();
+    const deviceId = device?.device_id;
+    if (!deviceId) return;
+    try {
+      await navigator.clipboard.writeText(deviceId);
+      setCopiedDeviceId(deviceId);
+      setTimeout(() => setCopiedDeviceId(null), 2000);
+    } catch {
+      console.error('Failed to copy device ID');
     }
   };
 
@@ -1017,8 +1033,21 @@ export default function Device() {
                     {device?.name || device?.device_id || 'Unknown Device'}
                   </h1>
 
-                  <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider">
+                  <div className="text-xs text-slate-500 mt-1 font-mono tracking-wider flex items-center gap-1.5">
                     Device ID: {device?.device_id || 'NO ID'}
+                    {device?.device_id && (
+                      <button
+                        onClick={handleCopyDeviceId}
+                        className="p-0.5 rounded text-gray-400 hover:text-teal-400 transition-colors shrink-0"
+                        title="Copy Device ID"
+                      >
+                        {copiedDeviceId === device?.device_id ? (
+                          <Check size={12} className="text-teal-400" />
+                        ) : (
+                          <Copy size={12} />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
