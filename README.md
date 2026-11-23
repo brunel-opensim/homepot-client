@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-brightgreen.svg)](https://python.org/)
-[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue.svg)](docs/)
+[![Documentation](https://img.shields.io/readthedocs/homepot-client/latest)](https://homepot-client.readthedocs.io/en/latest/)
 [![Code Style](https://img.shields.io/badge/code%20style-black%20%7C%20flake8-000000.svg)](https://github.com/psf/black)
 [![Security](https://img.shields.io/badge/security-audit%20passing-green.svg)](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
 
