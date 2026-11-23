@@ -59,7 +59,10 @@ def mock_db_url(monkeypatch):
     yield
     engine.dispose()
     if os.path.exists(path):
-        os.unlink(path)
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
 
 
 def _make_user(db, email, *, is_admin=False):
