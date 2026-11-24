@@ -6,7 +6,8 @@
 [![Code Style](https://img.shields.io/badge/code%20style-black%20%7C%20flake8-000000.svg)](https://github.com/psf/black)
 [![Security](https://img.shields.io/badge/security-audit%20passing-green.svg)](https://github.com/brunel-opensim/homepot-client/actions/workflows/security-audit.yml)
 
-> **Private Repository**: This repository is restricted to HOMEPOT consortium members only.
+> **Public Repository**: HOMEPOT Client is developed by the HOMEPOT consortium and
+> released as open source under the Apache License 2.0.
 
 HOMEPOT stands for **Homogenous Cyber Management of End-Points and Operational Technology**.
 It is a collaborative, multi-partner project that aims to unify the way organisations manage, secure, and communicate with diverse end-points and operational technology devices across different platforms and environments.
@@ -226,7 +227,7 @@ homepot-client/
 ### Full Installation
 
 ```bash
-# Clone the repository (consortium members only)
+# Clone the repository
 git clone https://github.com/brunel-opensim/homepot-client.git
 cd homepot-client
 
@@ -344,7 +345,9 @@ Key documentation sections:
 
 ## Consortium Information
 
-This is a private project developed by the HOMEPOT consortium for consortium members only.
+This project is developed by the HOMEPOT consortium and released as open source
+under the Apache License 2.0. Contributions and issue reports from the wider
+community are welcome.
 
 ### Use Cases
 
@@ -403,4 +406,6 @@ Copyright 2025 HOMEPOT Consortium
 
 ---
 
-**Important**: This repository contains proprietary consortium information. Access is restricted to authorized HOMEPOT consortium members only.
+**Note**: This repository is released as open source under the Apache License 2.0.
+See the [Code signing policy](#code-signing-policy) section for how release
+artefacts are signed.

@@ -1,10 +1,12 @@
 # Contributing to HOMEPOT Client
 
-Thank you for your interest in contributing to the HOMEPOT Client project. This document provides guidelines for consortium members contributing to this private repository.
+Thank you for your interest in contributing to the HOMEPOT Client project. This
+document provides guidelines for contributing to this open-source repository.
 
 ## Project Access
 
-This repository is private and restricted to HOMEPOT consortium members only. Please ensure you have proper authorization before contributing.
+This repository is open source under the Apache License 2.0. Contributions from
+the community are welcome; see the guidelines below.
 
 ## Getting Started
 
