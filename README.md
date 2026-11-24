@@ -368,6 +368,33 @@ For support and questions:
 
 - Ghorbani, M. et al. (2026). Trustworthy Data Foundations for AI-Driven Analytics in Distributed IoT: A Validation-First Methodology. In: Paszynski, M., Barnard, A.S., Zhang, Y.J. (eds) Computational Science – ICCS 2026 Workshops. ICCS 2026. Lecture Notes in Computer Science, vol 16788. Springer, Cham. https://doi.org/10.1007/978-3-032-29915-4_42
 
+## Code signing policy
+
+The Windows binaries of the HOMEPOT User App are submitted for code signing
+through the [SignPath Foundation](https://signpath.org/) free open-source
+code-signing programme (see `docs/user-app-releases.md` §11). This policy documents the conditions under which signing is
+performed, as required by that programme.
+
+- **Licence.** The project is released under the Apache License 2.0
+  (`LICENSE`). No component of the build is proprietary, and there is no
+  commercial dual-licensing of any part of the project.
+- **Scope of signing.** Only release artefacts produced by the GitHub Actions
+  workflow (`.github/workflows/user-app-build.yml`) on GitHub-hosted runners
+  are submitted for signing: the Windows application executable, the NSIS
+  installer, and the embedded NSIS uninstaller. No other binaries are signed
+  under this policy.
+- **Build integrity.** Signing submissions are created only from artifacts
+  uploaded by the workflow run for a commit on `main` (or a manual dispatch).
+  Builds are not re-run and re-submitted under a different identity.
+- **Maintainers.** Committers with push access to `main` use multi-factor
+  authentication on their GitHub accounts. Changes to the signing workflow or
+  to the artifacts submitted for signing require review via pull request.
+- **No commercial use.** Signed artefacts are not sold. The project is an
+  R&D/consortium effort; if any release is ever commercialised, signing must
+  move to a paid certificate and this policy updated.
+- **Contact.** Signing-related questions are handled through GitHub Issues on
+  this repository.
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

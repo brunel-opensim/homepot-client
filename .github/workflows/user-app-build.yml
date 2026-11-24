@@ -225,6 +225,17 @@ jobs:
       - name: Package with electron-builder
         run: npx electron-builder ${{ matrix.targets }} --publish never
 
+      - name: Report Windows Authenticode status (informational)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Tracks the signing gap from #1003. Unsigned builds report NotSigned;
+          # once SignPath (or another signer) is wired this should read Valid.
+          Get-ChildItem release -Filter *.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            Write-Host "$($_.Name): $($sig.Status)"
+          }
+
       - name: Assert packaged app ships the frozen binaries
         shell: bash
         run: |
@@ -428,11 +439,66 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  publish:
-    name: Publish Draft Release
+  sign-windows:
+    name: Sign Windows artifacts (SignPath)
     needs: [package]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true'
+    # Opt-in: only runs when the SignPath secrets are configured. Until the
+    # project is approved by the SignPath Foundation this job is skipped and the
+    # publish job ships the unsigned artefacts, matching the documented status.
+    if: ${{ needs.package.result == 'success' && secrets.SIGNPATH_API_TOKEN != '' }}
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Download Windows package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows-latest
+          path: unsigned
+
+      - name: Show unsigned Windows artifacts
+        run: find unsigned -type f -name '*.exe' -o -name '*.msi' | sort
+
+      - name: Re-upload unsigned Windows binaries as a GitHub artifact
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: signpath-windows-unsigned
+          path: |
+            unsigned/*.exe
+            unsigned/*.msi
+          archive: false
+          if-no-files-found: error
+
+      - name: Submit signing request to SignPath
+        id: sign
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Upload signed Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-signed
+          path: signed/**
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish Draft Release
+    needs: [package, sign-windows]
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true' &&
+      (needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped')
     permissions:
       contents: write
 
