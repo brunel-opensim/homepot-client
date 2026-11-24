@@ -4,8 +4,9 @@ Windows-specific problems with the packaged HOMEPOT Agent, and what to do about
 them. The short version: **every Windows artifact we publish is unsigned**, and
 most of the symptoms below follow from that.
 
-Status of the signing gap: **Open** (root cause identified; fix needs a code
-signing certificate).
+Status of the signing gap: **Partial** (root cause identified; a zero-cost
+SignPath Foundation route is wired into CI and activates once the project is
+approved and the `SIGNPATH_*` secrets are set).
 
 ## Where the NSIS install lives
 

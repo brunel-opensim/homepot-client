@@ -273,8 +273,16 @@ Downloads page. This is the one-step-back path.
 
 ## 11. Code signing
 
-Status: **Open** — no certificate is configured, so every Windows artifact ships
-unsigned.
+Status: **Partial** — no paid certificate is configured, so production builds
+still ship unsigned by default. A zero-cost path via the
+[SignPath Foundation](https://signpath.org/) open-source programme is wired into
+the packaging workflow (`.github/workflows/user-app-build.yml`, `sign-windows`
+job) and activates automatically once the project is approved and the
+`SIGNPATH_API_TOKEN` / `SIGNPATH_ORGANIZATION_ID` / `SIGNPATH_PROJECT_SLUG`
+secrets are set. Until then the workflow produces unsigned artefacts and the
+workarounds in
+[Windows Install and Uninstall Troubleshooting](user-app-windows-troubleshooting.md)
+apply.
 
 This is not cosmetic. An unsigned NSIS uninstaller copies itself to `%TEMP%` as
 `Un_A.exe`, Windows Security refuses to start it, and the uninstall ends with
@@ -303,6 +311,14 @@ script, so nothing blocks it.
 | OV Authenticode certificate | ~£200–400/yr | Simplest wiring: `CSC_LINK` + `CSC_KEY_PASSWORD` as CI secrets, no config change needed — electron-builder picks them up automatically. Publisher is confirmed immediately; SmartScreen reputation still accrues over weeks. |
 | EV certificate | ~£300–500/yr | Instant SmartScreen reputation, but the key lives on a hardware token, which is awkward on hosted CI and usually needs a signing service. |
 | Azure Trusted Signing | ~$10/mo | Native support via `win.azureSignOptions` in the electron-builder version we pin. CI-friendly. Requires roughly three years of verifiable organisation history. |
+| SignPath Foundation | Free (OSS) | Zero-cost route for this Apache 2.0 project. Signs the Windows `.exe`, NSIS installer and embedded uninstaller via the `sign-windows` job in `user-app-build.yml`. Publisher shown is "SignPath Foundation"; SmartScreen reputation starts fresh. Requires project approval and a code-signing policy on the project home page (see README §Code signing policy). |
+
+**Activating SignPath.** Once the project is approved by the SignPath Foundation,
+add these repository secrets (Settings → Secrets and variables → Actions):
+`SIGNPATH_API_TOKEN`, `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
+`SIGNPATH_SIGNING_POLICY_SLUG`. The `sign-windows` job then runs automatically
+on every build and the publish job ships the signed artefacts; no further code
+change is needed. Until then the job is skipped and builds stay unsigned.
 
 ### Verifying a signed build
 
