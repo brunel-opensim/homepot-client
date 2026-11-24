@@ -320,6 +320,42 @@ add these repository secrets (Settings → Secrets and variables → Actions):
 on every build and the publish job ships the signed artefacts; no further code
 change is needed. Until then the job is skipped and builds stay unsigned.
 
+### SignPath Foundation application (tracking)
+
+- **Submitted:** 2026-11-24
+- **Status:** Pending review (SignPath Foundation open-source programme).
+- **What was submitted:** project name/URL, homepage, download URL, tagline,
+  category (Application), build system (GitHub Actions), primary discovery
+  channel (GitHub), reputation evidence (public repo, 45 releases, Read the Docs,
+  ICCS 2026 paper, consortium backing), and the code-signing policy published in
+  `README.md` § "Code signing policy".
+- **Evidence links provided:** https://github.com/brunel-opensim/homepot-client,
+  https://homepot-client.readthedocs.io/en/latest/, https://homepot.cabera.com/downloads
+- **Expected response:** a few weeks; SignPath may request clarifications or
+  changes.
+
+**Post-approval checklist (do not start until approved):**
+
+1. Receive `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
+   `SIGNPATH_SIGNING_POLICY_SLUG` and an API token from SignPath.
+2. Add all four as repository secrets
+   (`SIGNPATH_API_TOKEN`, `SIGNPATH_ORGANIZATION_ID`, `SIGNPATH_PROJECT_SLUG`,
+   `SIGNPATH_SIGNING_POLICY_SLUG`).
+3. Install the SignPath GitHub App on the repository and link the Trusted Build
+   System (GitHub.com) to the SignPath project.
+4. Dispatch a publish run (`publish=true`) and confirm the `sign-windows` job
+   runs and uploads `release-windows-signed`.
+5. Verify a signed build:
+   `Get-AuthenticodeSignature .\homepot-agent-setup-<version>.exe` → `Valid`.
+6. Update status lines in this doc and in
+   `docs/user-app-windows-troubleshooting.md` from **Partial** → **Done**.
+7. Update `README.md` code-signing policy wording from "submitted for" to
+   "signed through".
+
+**If declined:** fall back to the unsigned posture (workarounds in
+`user-app-windows-troubleshooting.md`) and revisit a paid certificate (OV) if
+budget becomes available; the CI scaffolding stays dormant and harmless.
+
 ### Verifying a signed build
 
 ```powershell
