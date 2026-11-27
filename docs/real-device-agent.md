@@ -105,6 +105,16 @@ Shows real-time device log lines (via `ErrorLog` records). The agent posts
 status snapshots every 30s (deduplicated) and structured events (command
 execution, connectivity issues, resource warnings) as they occur.
 
+Status report lines include (when available):
+- Battery: `bat X% (charging)` or `bat X%`
+- Network: `net wifi (SSID)` or `net ethernet`
+- Temperature: `cpu X C`, `sys X C`, `gpu X C`
+- CPU speed: `X.XGHz`
+
+Device detail metrics (uptime, CPU %, memory %, disk %, IP, OS, hostname) are
+shown separately on the device details page and are excluded from the live log
+to reduce noise.
+
 **Source**: Agent posts to `POST /api/v1/agent/logs`.
 
 ### Audit Trail

@@ -371,6 +371,7 @@ build stays independent of the Dashboard and its dependencies. See
 **What it does:**
 - Displays the **Device DNA** table:
   - Hostname
+  - Hardware (CPU cores, RAM, processor, arch)
   - MAC Address
   - Local IP
   - OS Details
