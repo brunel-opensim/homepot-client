@@ -6,16 +6,17 @@
 # gitignored file instead of the command line.
 #
 # Usage:
-#   ./scripts/add-user.sh <username> <email> <password> [role]
+#   ./scripts/add-user.sh <username> <email> <password> [role] [full_name]
 #
 #   role: Admin | Technician (case-insensitive; legacy aliases such as
 #         "engineer" or "viewer" are normalised). Defaults to Technician.
 #         Use a literal 'true' or 'false' for is_admin to stay backward
 #         compatible with older call sites.
+#   full_name: Optional display name for the user. Defaults to empty.
 #
 # Examples:
 #   ./scripts/add-user.sh john_doe john@example.com 'a-long-passphrase'
-#   ./scripts/add-user.sh jane_ops jane@example.com 'a-long-passphrase' Admin
+#   ./scripts/add-user.sh jane_ops jane@example.com 'a-long-passphrase' Admin 'Jane Ops'
 #   ./scripts/add-user.sh john_doe john@example.com 'a-long-passphrase' true
 #
 # The database URL is resolved the same way as scripts/upgrade-db.sh,
@@ -61,7 +62,7 @@ if [ "${1:-}" = "--url" ]; then
   shift 2
 fi
 
-if [ "$#" -gt 4 ]; then
+if [ "$#" -gt 5 ]; then
   echo -e "${RED}Error: too many arguments${NC}" >&2
   usage >&2
   exit 1
@@ -71,6 +72,7 @@ USERNAME="$1"
 EMAIL="$2"
 PASSWORD="$3"
 ROLE_RAW="${4:-Technician}"
+FULL_NAME="${5:-}"
 
 # Backward compatibility: older call sites passed is_admin as true/false.
 case "$ROLE_RAW" in
@@ -114,6 +116,7 @@ echo "HOMEPOT Add User"
 echo "  username: $USERNAME"
 echo "  email:    $EMAIL"
 echo "  role:     $ROLE_RAW"
+echo "  name:     ${FULL_NAME:-<none>}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Password hashing and the dialect fix both need Python, so the work happens
@@ -123,6 +126,7 @@ REPO_ROOT="$REPO_ROOT" PYTHON="$PYTHON" \
   HOMEPOT_NEW_EMAIL="$EMAIL" \
   HOMEPOT_NEW_PASSWORD="$PASSWORD" \
   HOMEPOT_NEW_ROLE="$ROLE_RAW" \
+  HOMEPOT_NEW_FULL_NAME="$FULL_NAME" \
   "$PYTHON" - <<'PYEOF'
 import os
 import sys
@@ -160,6 +164,7 @@ username = os.environ["HOMEPOT_NEW_USERNAME"].strip()
 email = os.environ["HOMEPOT_NEW_EMAIL"].strip()
 password = os.environ["HOMEPOT_NEW_PASSWORD"]
 role_raw = os.environ["HOMEPOT_NEW_ROLE"].strip()
+full_name = os.environ.get("HOMEPOT_NEW_FULL_NAME", "").strip() or None
 
 role = normalize_role(role_raw)
 if role_raw.lower() not in LEGACY_ROLE_ALIASES:
@@ -196,6 +201,7 @@ try:
         User(
             username=username,
             email=email,
+            full_name=full_name,
             hashed_password=hash_password(password),
             role=role,
             is_admin=is_admin,
