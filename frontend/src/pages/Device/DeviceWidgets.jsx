@@ -608,6 +608,21 @@ export const DeviceInfoWidget = ({ device }) => (
           <span>{device?.os_details || device?.os_family || 'N/A'}</span>
         </span>
       </div>
+      {device?.hardware && (
+        <div className="flex justify-between">
+          <span className="text-slate-400">Hardware</span>
+          <span className="text-slate-200 text-xs text-right">
+            {[
+              device.hardware.cpu_count && `${device.hardware.cpu_count} cores`,
+              device.hardware.total_memory_gb && `${device.hardware.total_memory_gb} GB RAM`,
+              device.hardware.processor,
+              device.hardware.arch,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        </div>
+      )}
       <div className="flex justify-between">
         <span className="text-slate-400">Site</span>
         <span className="text-teal-400">{device?.site_name || device?.site_id || 'N/A'}</span>

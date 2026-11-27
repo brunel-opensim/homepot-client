@@ -7,6 +7,11 @@ import os
 from pathlib import Path
 import platform
 import secrets
+
+try:
+    import psutil
+except ImportError:
+    psutil = None  # type: ignore[assignment]
 import signal
 import socket
 import ssl
@@ -1093,6 +1098,17 @@ async def send_registration(
             "local_ip": get_local_ip(),
             "hostname": socket.gethostname(),
             "device_source": "physical",
+            "hardware": {
+                "cpu_count": psutil.cpu_count(logical=True) if psutil else None,
+                "cpu_physical": psutil.cpu_count(logical=False) if psutil else None,
+                "total_memory_gb": (
+                    round(psutil.virtual_memory().total / (1024**3), 1)
+                    if psutil
+                    else None
+                ),
+                "processor": platform.processor() or None,
+                "arch": platform.machine(),
+            },
             "wan_ip": get_wan_ip(),
             "peripherals": get_connected_peripherals(),
         }

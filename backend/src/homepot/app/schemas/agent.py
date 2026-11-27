@@ -43,6 +43,9 @@ class AgentRegisterRequest(BaseModel):
         None,
         description="Source identifier for the device — 'physical', 'emulator', or 'simulation'",
     )
+    hardware: Optional[dict] = Field(
+        None, description="Hardware inventory (CPU, RAM, arch, processor)"
+    )
     agent_version: Optional[str] = Field(
         None,
         description="Version of the User App / agent running on the device (e.g. '0.3.13')",
