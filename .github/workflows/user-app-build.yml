@@ -154,7 +154,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Build packages on main pushes (fresh artifacts for testing) and on manual
     # dispatch; do not burn three runners on every PR.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: always() || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     strategy:
       fail-fast: false
       matrix:
@@ -512,7 +512,7 @@ jobs:
     name: Publish Draft Release
     needs: [package, sign-windows]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    if: always()
     permissions:
       contents: write
 
