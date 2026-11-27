@@ -106,7 +106,7 @@ function StepIndicator({ current, steps }: { current: number; steps: SetupStep[]
                 ? 'border-emerald-500 text-emerald-400 bg-slate-900'
                 : 'border-slate-600 text-slate-500 bg-slate-900'
             }`}>
-              {i < current ? '✓' : i + 1}
+              {i < current ? 'Done' : i + 1}
             </div>
             <span className={`text-xs ${i === current ? 'text-emerald-400' : 'text-slate-500'}`}>
               {step.label}
@@ -251,7 +251,7 @@ function Step1() {
           <p className="text-slate-500 text-xs">Checking site credentials...</p>
         )}
         {credentialStatus === 'verified' && (
-          <p className="text-emerald-500 text-xs">✓ Site credentials verified</p>
+          <p className="text-emerald-500 text-xs">Site credentials verified</p>
         )}
         {credentialStatus === 'invalid' && (
           <p className="text-red-400 text-xs">✗ Site ID or bootstrap key is incorrect.</p>
@@ -283,7 +283,7 @@ function Step1() {
           <p className="text-slate-500 text-xs">Checking name availability…</p>
         )}
         {nameStatus === 'available' && (
-          <p className="text-emerald-500 text-xs">✓ Name available</p>
+          <p className="text-emerald-500 text-xs">Name available</p>
         )}
         {nameStatus === 'taken' && (
           <p className="text-red-400 text-xs">✗ Name already in use in this site — pick a different name.</p>
@@ -426,7 +426,7 @@ function ReviewStep({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex flex-col gap-5 w-full items-center text-center">
       <div className="w-16 h-16 rounded-full bg-emerald-900 border-2 border-emerald-500 flex items-center justify-center">
-        <span className="text-3xl">✓</span>
+        <span className="text-3xl">Done</span>
       </div>
 
       <div>
@@ -532,7 +532,7 @@ function EmulatorConfigStep() {
             <div className="flex items-center justify-between">
               <span className="text-slate-200 font-medium text-sm">{t.label}</span>
               {emulatorType === t.value && (
-                <span className="text-emerald-400 text-sm">✓</span>
+                <span className="text-emerald-400 text-sm">Done</span>
               )}
             </div>
             <p className="text-slate-400 text-xs mt-1">{t.description}</p>
