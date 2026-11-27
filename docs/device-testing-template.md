@@ -191,7 +191,7 @@ Naming convention: `<platform>-<device-slug>-<date>.md`
 - Date: `YYYY-MM-DD`
 
 Examples:
-- `docs/test-results/windows11-brunel-2026-10-29.md`
+- `docs/test-results/windows-device-template.md`
 - `docs/test-results/windows10-getfudo-2026-10-29.md`
 - `docs/test-results/macos-brunel-2026-11-05.md`
 
