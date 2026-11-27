@@ -913,7 +913,7 @@ export default function DeviceHistory() {
                                     before: {val.verification.before ?? 'N/A'} → after:{' '}
                                     {val.verification.after ?? 'N/A'} (target:{' '}
                                     {val.verification.target})
-                                    {val.verification.verified ? ' ✓' : ' ✗'}
+                                    {val.verification.verified ? ' Yes' : ' No'}
                                   </div>
                                 )}
                                 {val?.error && (

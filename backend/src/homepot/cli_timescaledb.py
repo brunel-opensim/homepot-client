@@ -177,7 +177,7 @@ def create_aggregates() -> None:
             # Display results
             click.echo("\nResults:")
             for name, success in results.items():
-                status = "✓" if success else "✗"
+                status = "OK" if success else "FAIL"
                 click.echo(f"  {status} {name}")
 
             successful = sum(1 for s in results.values() if s)

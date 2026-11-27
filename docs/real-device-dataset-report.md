@@ -296,10 +296,10 @@ SELECT * FROM device_metrics WHERE device_id = 44 ORDER BY timestamp DESC LIMIT 
 
 | Table | Dataset A (Telemetry) | Dataset B (Management) | Dataset C (Alerts) |
 |-------|:---:|:---:|:---:|
-| `device_metrics` | ✅ | — | — |
-| `device_commands` | — | ✅ | — |
-| `device_state_history` | — | ✅ | — |
-| `alerts` | — | — | ✅ |
+| `device_metrics` | Yes | — | — |
+| `device_commands` | — | Yes | — |
+| `device_state_history` | — | Yes | — |
+| `alerts` | — | — | Yes |
 
 No table appears in more than one dataset. Counts are reported separately.
 
