@@ -109,10 +109,20 @@ class AgentService:
 
                 if payload.hostname:
                     updated_obj = cast(Any, updated)
+                    updated_obj.hostname = payload.hostname
                     existing_config = dict(
                         cast(Dict[str, Any], updated_obj.config or {})
                     )
                     existing_config["hostname"] = payload.hostname
+                    updated_obj.config = existing_config
+                    self.repository.save_device(updated)
+
+                if payload.hardware:
+                    updated_obj = cast(Any, updated)
+                    existing_config = dict(
+                        cast(Dict[str, Any], updated_obj.config or {})
+                    )
+                    existing_config["hardware"] = payload.hardware
                     updated_obj.config = existing_config
                     self.repository.save_device(updated)
 
