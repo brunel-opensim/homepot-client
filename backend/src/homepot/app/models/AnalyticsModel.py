@@ -351,9 +351,13 @@ class Alert(Base):
     # Evidence provenance
     provenance = Column(String(20), nullable=True, index=True)
 
+    # Incident grouping key (condition that triggered the alert)
+    incident_id = Column(String(50), nullable=True, index=True)
+
     __table_args__ = (
         Index("idx_alert_status_severity", "status", "severity"),
         Index("idx_alert_device", "device_id"),
+        Index("idx_alert_incident", "incident_id"),
     )
 
 

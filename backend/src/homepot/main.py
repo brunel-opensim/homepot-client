@@ -120,6 +120,7 @@ async def _run_offline_escalation_loop() -> None:
                     category="connectivity",
                     description=c["description"],
                     site_id=c.get("site_id"),
+                    incident_id=f"{c['device_id']}:connectivity:{c['severity']}",
                 )
                 logger.info(
                     "Created %s offline escalation alert for device %s (%.1f min offline)",

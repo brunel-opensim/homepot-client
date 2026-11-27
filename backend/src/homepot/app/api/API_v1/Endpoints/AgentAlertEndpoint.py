@@ -59,6 +59,7 @@ async def report_alert(
             severity=payload.severity,
             category=payload.category,
             timestamp=payload.timestamp,
+            incident_id=f"{current_device.device_id}:{payload.category}",
         )
         return {
             "status": "success",
