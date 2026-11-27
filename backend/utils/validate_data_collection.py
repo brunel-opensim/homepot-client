@@ -143,7 +143,7 @@ class DataCollectionValidator:
             self.results["issues"].append(
                 "Database not accessible. Ensure PostgreSQL is running and credentials are correct."
             )
-            print(f"{Colors.RED}✗{Colors.END} {check_name}: {str(e)}")
+            print(f"{Colors.RED}FAIL:{Colors.END} {check_name}: {str(e)}")
 
     async def _check_agent_activity(self):
         """Check if agents are running and active."""
@@ -167,7 +167,7 @@ class DataCollectionValidator:
                         "No active devices. Start agents with: uvicorn homepot.app.main:app"
                     )
                     print(
-                        f"{Colors.YELLOW}⚠{Colors.END} {check_name}: No active devices"
+                        f"{Colors.YELLOW}WARNING:{Colors.END} {check_name}: No active devices"
                     )
                 else:
                     self._add_check_result(
@@ -178,7 +178,7 @@ class DataCollectionValidator:
                     )
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
-            print(f"{Colors.RED}✗{Colors.END} {check_name}: {str(e)}")
+            print(f"{Colors.RED}FAIL:{Colors.END} {check_name}: {str(e)}")
 
     async def _check_device_metrics(self):
         """Validate device_metrics table."""
@@ -253,14 +253,14 @@ class DataCollectionValidator:
                         "Configure site schedules using: python utils/populate_schedules.py"
                     )
                     print(
-                        f"{Colors.YELLOW}⚠{Colors.END} {check_name}: No schedules (run populate_schedules.py)"
+                        f"{Colors.YELLOW}WARNING:{Colors.END} {check_name}: No schedules (run populate_schedules.py)"
                     )
                 elif count < 7:
                     self._add_check_result(
                         check_name, "warning", f"Only {count}/7 days configured"
                     )
                     print(
-                        f"{Colors.YELLOW}⚠{Colors.END} {check_name}: {count}/7 days configured"
+                        f"{Colors.YELLOW}WARNING:{Colors.END} {check_name}: {count}/7 days configured"
                     )
                 else:
                     self._add_check_result(
@@ -271,7 +271,7 @@ class DataCollectionValidator:
                     )
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
-            print(f"{Colors.RED}✗{Colors.END} {check_name}: {str(e)}")
+            print(f"{Colors.RED}FAIL:{Colors.END} {check_name}: {str(e)}")
 
     async def _check_api_request_logs(self):
         """Validate api_request_logs table."""
@@ -341,7 +341,7 @@ class DataCollectionValidator:
                         f"{name}: No data found. Ensure backend is running and agents are active."
                     )
                     print(
-                        f"{Colors.RED if critical else Colors.YELLOW}{'✗' if critical else '⚠'}{Colors.END} {name}: No data"
+                        f"{Colors.RED if critical else Colors.YELLOW}{'FAIL:' if critical else 'WARNING:'}{Colors.END} {name}: No data"
                     )
                 elif collection_days < self.min_days:
                     status = "warning"
@@ -357,7 +357,7 @@ class DataCollectionValidator:
                         },
                     )
                     print(
-                        f"{Colors.YELLOW}⚠{Colors.END} {name}: {collection_days:.1f}/{self.min_days} days"
+                        f"{Colors.YELLOW}WARNING:{Colors.END} {name}: {collection_days:.1f}/{self.min_days} days"
                     )
                 else:
                     # Check collection rate
@@ -389,7 +389,7 @@ class DataCollectionValidator:
 
         except Exception as e:
             self._add_check_result(name, "failed", str(e))
-            print(f"{Colors.RED}✗{Colors.END} {name}: {str(e)}")
+            print(f"{Colors.RED}FAIL:{Colors.END} {name}: {str(e)}")
 
     async def _check_data_quality(self):
         """Check data quality metrics."""
@@ -424,7 +424,7 @@ class DataCollectionValidator:
                     if null_count > 0:
                         quality_issues.append(f"{null_count} metrics with null {name}")
                         print(
-                            f"  {Colors.YELLOW}⚠{Colors.END} {null_count} records with null {name}"
+                            f"  {Colors.YELLOW}WARNING:{Colors.END} {null_count} records with null {name}"
                         )
 
                     # Check for max value if applicable
@@ -439,7 +439,7 @@ class DataCollectionValidator:
                                 f"{invalid_count} metrics with invalid {name} (>{max_val})"
                             )
                             print(
-                                f"  {Colors.RED}✗{Colors.END} {invalid_count} records with {name} > {max_val}"
+                                f"  {Colors.RED}FAIL:{Colors.END} {invalid_count} records with {name} > {max_val}"
                             )
 
             if quality_issues:
@@ -452,7 +452,7 @@ class DataCollectionValidator:
 
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
-            print(f"  {Colors.RED}✗{Colors.END} {str(e)}")
+            print(f"  {Colors.RED}FAIL:{Colors.END} {str(e)}")
 
     async def _check_collection_gaps(self):
         """Check for gaps in data collection."""
@@ -474,7 +474,7 @@ class DataCollectionValidator:
 
                 if len(timestamps) < 2:
                     print(
-                        f"  {Colors.YELLOW}⚠{Colors.END} Insufficient data for gap analysis"
+                        f"  {Colors.YELLOW}WARNING:{Colors.END} Insufficient data for gap analysis"
                     )
                     return
 
@@ -499,7 +499,7 @@ class DataCollectionValidator:
                         {"gaps": gaps[:5]},  # First 5 gaps
                     )
                     print(
-                        f"  {Colors.YELLOW}⚠{Colors.END} {len(gaps)} gap(s) > 1 hour detected"
+                        f"  {Colors.YELLOW}WARNING:{Colors.END} {len(gaps)} gap(s) > 1 hour detected"
                     )
                     self.results["recommendations"].append(
                         "Collection gaps detected. Ensure backend stays running "
@@ -516,7 +516,7 @@ class DataCollectionValidator:
 
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
-            print(f"  {Colors.RED}✗{Colors.END} {str(e)}")
+            print(f"  {Colors.RED}FAIL:{Colors.END} {str(e)}")
 
     def _add_check_result(
         self, name: str, status: str, message: str, details: Optional[Dict] = None
@@ -560,8 +560,8 @@ class DataCollectionValidator:
         summary = self.results["summary"]
         print(f"Total Checks: {summary['total']}")
         print(f"  {Colors.GREEN}✓{Colors.END} Passed: {summary['passed']}")
-        print(f"  {Colors.YELLOW}⚠{Colors.END} Warnings: {summary['warnings']}")
-        print(f"  {Colors.RED}✗{Colors.END} Failed: {summary['failed']}")
+        print(f"  {Colors.YELLOW}WARNING:{Colors.END} Warnings: {summary['warnings']}")
+        print(f"  {Colors.RED}FAIL:{Colors.END} Failed: {summary['failed']}")
 
         # Overall status
         status = self.results["overall_status"]
@@ -571,11 +571,11 @@ class DataCollectionValidator:
             message = "All checks passed! Data collection is healthy."
         elif status == "warning":
             color = Colors.YELLOW
-            symbol = "⚠"
+            symbol = "WARNING:"
             message = "Some warnings detected. Review recommendations below."
         else:
             color = Colors.RED
-            symbol = "✗"
+            symbol = "FAIL:"
             message = "Critical issues found. Fix issues before AI training."
 
         print(

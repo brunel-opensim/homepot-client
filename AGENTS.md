@@ -15,7 +15,7 @@ before opening a pull request.
 
 ## Non-negotiable conventions
 
-1. **No emoji status markers** in repository docs. Use plain words (Done/Partial/Open).
+1. **No emoji or emoji-like status markers** anywhere in the repository (docs, code, scripts, UI text, commit messages). Use plain words (Done/Partial/Open/Yes/No/Warning). This applies to ALL files including frontend components, backend scripts, and test files. Do NOT use ✅, ❌, ⚠, 💡, ✓, ✗, or any other glyph as a status indicator.
 2. **No commercial LLM API keys in git.** Keys come from env / secret manager; demo secrets are server-side only.
 3. **Server tracks GitHub `main`.** The assistant opens PRs; the user merges. Do not merge PRs yourself unless explicitly told "please go ahead".
 4. **Ask before removing pages.** The Devices page stays.
@@ -111,6 +111,6 @@ Python changed. It blocks the commit on failure. **Do not bypass with
 - Merge PRs unless the user explicitly says "please go ahead".
 - Remove pages (Devices page stays).
 - Commit API keys or secrets.
-- Use emoji status markers in docs.
+- Use emoji or emoji-like status markers anywhere in the repository (docs, code, scripts, UI text). Use plain words instead.
 PYEOF
 echo "written"

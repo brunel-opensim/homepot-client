@@ -259,7 +259,7 @@ export default function Logs() {
             <p className="text-slate-500 text-xs">Application Logs</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center">
-            <span className="text-base">📋</span>
+            <span className="text-base"></span>
           </div>
         </div>
 
