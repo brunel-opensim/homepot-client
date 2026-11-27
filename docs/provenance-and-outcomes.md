@@ -34,21 +34,25 @@ order is:
    - `"simulation"` → `simulated`;
    - `"physical"` → `real`;
 2. otherwise, if `device.is_simulated` → `simulated`;
-3. otherwise → `real`.
+3. otherwise → `None` (uncertain — no longer defaults to `real`).
 
-When the device record is not available, `derive_provenance` returns `None` and
-no classification is stored, rather than a guessed one.
+When the device record is not available, or `device_source` is not explicitly
+set, `derive_provenance` returns `None` and no classification is stored, rather
+than a guessed one. This ensures that only devices with an explicit
+`device_source="physical"` are classified as `real`.
 
 ### 3.1 Snapshotted columns
 
 | Table | Column | Notes |
 | --- | --- | --- |
 | `device_metrics` | `provenance` | Also snapshots `collection_interval_seconds` |
-| `device_state_history` | `provenance` | |
+| `device_state_history` | `provenance` | Snapshotted at lifecycle transition |
 | `configuration_history` | `provenance` | |
 | `job_outcomes` | `provenance` | Present in schema; outside the EQ-01 tables |
 | `error_logs` | `provenance` | Present in schema; outside the EQ-01 tables |
-| `device_commands` | — | No snapshotted provenance; scoped at export time |
+| `device_commands` | `provenance` | Snapshotted at command creation time |
+| `alerts` | `provenance` | Snapshotted at alert creation time |
+| `anomaly_scans` | `provenance` | Snapshotted at scan creation time |
 
 ### 3.2 Collection metadata
 
@@ -59,11 +63,10 @@ sample; its default is 30 seconds). It is the source for the EQ-02
 
 ### 3.3 Export-time scoping
 
-`device_commands` predates provenance snapshots, so command KPIs are scoped by
-re-deriving each device's class at export time from the current device record.
-This means a command's reported scope reflects the device's classification
-today rather than at command time — see the limitation in
-[KPI export](kpi-export.md) §10.
+`device_commands` now carries a snapshotted `provenance` column (added in
+migration `20261128`). New commands snapshot provenance at creation time.
+Historical commands (created before the migration) have `provenance = NULL`
+and are scoped by re-deriving from the current device record at export time.
 
 ## 4. Command outcome tracking
 

@@ -125,10 +125,11 @@ filter is given, results are computed for **every** scope: `all`, `real`,
 `controlled`, and `simulated` (the roadmap §3.1 classes, lower-cased).
 
 Tables that snapshot a `provenance` column at write time
-(`device_metrics`, `device_state_history`, `configuration_history`) are filtered
-directly on that column. `device_commands` predates provenance snapshots, so
-command KPIs are scoped by deriving each device's classification **at export
-time** from the device record. The derivation is:
+(`device_metrics`, `device_state_history`, `configuration_history`,
+`device_commands`, `alerts`, `anomaly_scans`) are filtered directly on that
+column. `device_commands` rows created before migration `20261128` have
+`provenance = NULL` and are scoped by re-deriving each device's classification
+**at export time** from the device record. The derivation is:
 
 1. `device.config["device_source"]` — `emulator` → `controlled`,
    `simulation` → `simulated`, `physical` → `real`;
@@ -193,7 +194,7 @@ The four tables and their columns:
 
 | Table | Columns |
 | --- | --- |
-| `device_metrics` | `timestamp`, `device_id`, `cpu_percent`, `memory_percent`, `network_latency_ms`, `provenance` |
+| `device_metrics` | `timestamp`, `device_id`, `cpu_percent`, `memory_percent`, `disk_percent`, `network_latency_ms`, `collection_interval_seconds`, `provenance`, `uptime_seconds`, `disk_io_bytes_s` (from `extra_metrics`) |
 | `device_state_history` | `timestamp`, `device_id`, `previous_state`, `new_state`, `provenance` |
 | `configuration_history` | `timestamp`, `entity_id`, `parameter_name`, `new_value`, `was_successful`, `was_rolled_back`, `rollback_success`, `provenance` |
 | `device_commands` | `command_id`, `device_id`, `command_type`, `status`, `created_at`, `sent_at`, `executed_at`, `provenance` |
