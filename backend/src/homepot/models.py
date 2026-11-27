@@ -485,6 +485,7 @@ class Device(Base):
     mac_address = Column(String(17), nullable=True)
     os_details = Column(String(255), nullable=True)
     local_ip = Column(String(45), nullable=True)
+    hostname = Column(String(255), nullable=True)
     wan_ip = Column(String(45), nullable=True)
     firmware_version = Column(String(50), nullable=True)
     last_seen = Column(DateTime(timezone=True), nullable=True)

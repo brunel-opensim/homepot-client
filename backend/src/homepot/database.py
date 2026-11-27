@@ -1522,6 +1522,7 @@ class DatabaseService:
         ai_recommendation: Optional[str] = None,
         ai_confidence: Optional[float] = None,
         timestamp: Optional[datetime.datetime] = None,
+        incident_id: Optional[str] = None,
     ) -> "Alert":
         """Create a new device alert."""
         if timestamp is not None and timestamp.tzinfo is not None:
@@ -1541,6 +1542,10 @@ class DatabaseService:
                 _derived = derive_provenance(dev) if dev is not None else None
                 provenance = _derived.value if _derived is not None else None
 
+            # Default incident_id: device_id:category (groups related alerts)
+            if incident_id is None and device_id:
+                incident_id = f"{device_id}:{category}"
+
             alert = Alert(
                 device_id=device_id,
                 site_id=site_id,
@@ -1553,6 +1558,7 @@ class DatabaseService:
                 ai_confidence=ai_confidence,
                 timestamp=timestamp or datetime.datetime.now(datetime.timezone.utc),
                 provenance=provenance,
+                incident_id=incident_id,
             )
             session.add(alert)
             await session.commit()
