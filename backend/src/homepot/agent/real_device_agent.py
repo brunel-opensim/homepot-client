@@ -529,6 +529,15 @@ async def _report_status_to_live_logs(
     if battery is not None:
         charging = " (charging)" if report.get("battery_charging") else ""
         message += f" | bat {battery}%{charging}"
+
+    # Network connection info
+    conn_type = report.get("network_connection_type")
+    if conn_type:
+        ssid = report.get("network_ssid")
+        if conn_type == "wifi" and ssid:
+            message += f" | net wifi ({ssid})"
+        else:
+            message += f" | net {conn_type}"
     payload = {
         "device_id": config["device_id"],
         "level": "info",
@@ -1426,6 +1435,8 @@ async def live_logs_loop(
                     "uptime_seconds": report.get("uptime_seconds"),
                     "battery_percent": report.get("battery_percent"),
                     "battery_charging": report.get("battery_charging"),
+                    "network_connection_type": report.get("network_connection_type"),
+                    "network_ssid": report.get("network_ssid"),
                 },
                 sort_keys=True,
             )
