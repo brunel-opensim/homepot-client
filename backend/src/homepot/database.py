@@ -736,7 +736,11 @@ class DatabaseService:
         """
         from sqlalchemy import delete, update
 
-        from homepot.models import DeviceAssignment, DeviceLifecycleEvent
+        from homepot.models import (
+            DeviceAssignment,
+            DeviceLifecycleEvent,
+            InvestigationSession,
+        )
 
         async with self.get_session() as session:
             result = await session.execute(
@@ -797,6 +801,51 @@ class DatabaseService:
                     ConfigurationHistory.entity_id == device_id,
                 )
             )
+            # Push notification logs for this device
+            await session.execute(
+                delete(PushNotificationLog).where(
+                    PushNotificationLog.device_id == device_id
+                )
+            )
+            # Anomaly scans for this device
+            from homepot.app.models.AnalyticsModel import AnomalyScan as _AnomalyScan
+
+            await session.execute(
+                delete(_AnomalyScan).where(_AnomalyScan.device_id == device_id)
+            )
+            # Investigation sessions for this device
+            await session.execute(
+                delete(InvestigationSession).where(
+                    InvestigationSession.device_id == device_id
+                )
+            )
+            # AI action steps targeting this device (and orphaned plans)
+            from homepot.app.models.AnalyticsModel import (
+                AIActionPlan,
+                AIActionStep,
+            )
+
+            await session.execute(
+                delete(AIActionStep).where(AIActionStep.target_device_id == device_id)
+            )
+            # Delete plans that no longer have any steps
+            orphaned_plans = (
+                (
+                    await session.execute(
+                        select(AIActionPlan.plan_id).where(
+                            ~AIActionPlan.plan_id.in_(
+                                select(AIActionStep.plan_id).distinct()
+                            )
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if orphaned_plans:
+                await session.execute(
+                    delete(AIActionPlan).where(AIActionPlan.plan_id.in_(orphaned_plans))
+                )
 
             # Record a tombstone audit event BEFORE deleting the device row so
             # we can still capture its identity. device_id is left None because
