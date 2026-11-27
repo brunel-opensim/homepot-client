@@ -3793,6 +3793,169 @@ def _process_command_impl(
     }
 
 
+def get_network_connection_info() -> Dict[str, Any]:
+    """Detect the active network connection type and details (best-effort).
+
+    Returns a dict with:
+      - connection_type: "wifi", "ethernet", "cellular", "unknown", or None
+      - ssid: network name (WiFi only, may be None)
+      - interface: active interface name (may be None)
+      - ip_address: current local IP (may be None)
+    """
+    info: Dict[str, Any] = {
+        "connection_type": None,
+        "ssid": None,
+        "interface": None,
+        "ip_address": None,
+    }
+
+    # Get local IP
+    try:
+        from homepot.agent.utils.device_dna import get_local_ip
+
+        info["ip_address"] = get_local_ip()
+    except Exception:  # noqa: BLE001
+        pass
+
+    if _is_windows_platform():
+        # Try netsh wlan to detect Wi-Fi
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["netsh", "wlan", "show", "interfaces"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            stdout = out.stdout or ""
+            if "State" in stdout and "connected" in stdout.lower():
+                # Parse SSID and interface
+                for line in stdout.splitlines():
+                    line = line.strip()
+                    if line.lower().startswith("name"):
+                        info["interface"] = line.split(":", 1)[-1].strip()
+                    elif (
+                        line.lower().startswith("ssid") and "bssid" not in line.lower()
+                    ):
+                        val = line.split(":", 1)[-1].strip()
+                        if val:
+                            info["ssid"] = val
+                            info["connection_type"] = "wifi"
+                if info["connection_type"] == "wifi":
+                    return info
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Fall back: check for active Ethernet adapter via PowerShell
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    (
+                        "Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | "
+                        "Select-Object -First 1 -ExpandProperty Name"
+                    ),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            iface = (out.stdout or "").strip()
+            if iface:
+                info["interface"] = iface
+                info["connection_type"] = "ethernet"
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "darwin":
+        # macOS: check if en0 (Wi-Fi) has an IP
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["networksetup", "-getairportnetwork", "en0"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            stdout = (out.stdout or "").strip()
+            if "Current Wi-Fi Network:" in stdout:
+                info["ssid"] = stdout.split(":", 1)[-1].strip()
+                info["connection_type"] = "wifi"
+                info["interface"] = "en0"
+                return info
+        except Exception:  # noqa: BLE001
+            pass
+        # Fall back to ethernet
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["ifconfig", "en1"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if "inet " in (out.stdout or ""):
+                info["interface"] = "en1"
+                info["connection_type"] = "ethernet"
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "linux":
+        # Linux: try iwgetid for Wi-Fi
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["iwgetid", "-r"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            ssid = (out.stdout or "").strip()
+            if ssid:
+                info["ssid"] = ssid
+                info["connection_type"] = "wifi"
+                return info
+        except FileNotFoundError:
+            pass
+        except Exception:  # noqa: BLE001
+            pass
+        # Fall back to nmcli
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "device"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in (out.stdout or "").splitlines():
+                parts = line.split(":")
+                if len(parts) >= 3 and parts[2] == "connected":
+                    info["interface"] = parts[0]
+                    info["connection_type"] = parts[1].lower()
+                    return info
+        except Exception:  # noqa: BLE001
+            pass
+
+    # If still unknown, try psutil to find an up interface with an IP
+    if info["connection_type"] is None:
+        try:
+            for iface, stats in psutil.net_if_stats().items():
+                if stats.isup and not iface.startswith("lo"):
+                    addrs = psutil.net_if_addrs().get(iface, [])
+                    for addr in addrs:
+                        if (
+                            addr.family.name == "AF_INET"
+                            and not addr.address.startswith("127.")
+                        ):
+                            info["interface"] = iface
+                            info["connection_type"] = "unknown"
+                            break
+                    if info["connection_type"]:
+                        break
+        except Exception:  # noqa: BLE001
+            pass
+
+    return info
+
+
 def _host_firmware_version() -> str:
     """Return the host firmware version (BIOS on Windows, OS build elsewhere).
 
@@ -3826,6 +3989,10 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
             battery_charging = bool(bat.power_plugged)
     except Exception:  # noqa: BLE001
         pass
+
+    # Network connection info (best-effort)
+    net_info = get_network_connection_info()
+
     return {
         "device_id": config["device_id"],
         "device_name": config.get("device_name", ""),
@@ -3842,6 +4009,9 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
         "disk_usage": metrics["disk_usage"],
         "battery_percent": battery_percent,
         "battery_charging": battery_charging,
+        "network_connection_type": net_info.get("connection_type"),
+        "network_ssid": net_info.get("ssid"),
+        "network_interface": net_info.get("interface"),
         "timestamp": utc_now_iso(),
     }
 
