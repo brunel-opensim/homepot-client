@@ -99,8 +99,8 @@ def _get_windows_printers() -> List[Dict[str, Any]]:
         ]
     except json.JSONDecodeError:
         return [{"error": "could not parse Windows printer list"}]
-    except Exception as exc:
-        return [{"error": str(exc)}]
+    except Exception:  # noqa: BLE001
+        return [{"error": "peripheral discovery failed"}]
 
 
 def _pnp_connection_type(instance_id: str) -> str:
@@ -202,8 +202,8 @@ def _get_cups_printers() -> List[Dict[str, Any]]:
                         }
                     )
         return printers
-    except Exception as exc:
-        return [{"error": str(exc)}]
+    except Exception:  # noqa: BLE001
+        return [{"error": "peripheral discovery failed"}]
 
 
 def _get_emulated_peripherals() -> Dict[str, List[Dict[str, Any]]]:

@@ -358,7 +358,7 @@ async def query_ai(request: QueryRequest) -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Query failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/api/ai/analyze")
@@ -477,7 +477,7 @@ async def analyze_device(request: AnalysisRequest) -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/predict/{device_id}")
@@ -489,7 +489,7 @@ async def predict_failure(device_id: str) -> Dict[str, Any]:
         return prediction  # type: ignore[no-any-return]
     except Exception as e:
         logger.error(f"Prediction failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 if __name__ == "__main__":

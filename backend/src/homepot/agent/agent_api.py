@@ -46,11 +46,28 @@ async def register_and_collect_device_dna(
                 detail="Device is not authorized for the requested site",
             )
 
+        dna = collect_device_dna()
+        # Sanitize: strip any exception details that may leak stack traces
+        # (CodeQL py/stack-trace-exposure).
+        if isinstance(dna, dict) and "peripherals" in dna:
+            periphs = dna.get("peripherals")
+            if isinstance(periphs, dict):
+                for key in list(periphs.keys()):
+                    val = periphs.get(key)
+                    if isinstance(val, list):
+                        periphs[key] = [
+                            (
+                                {k: v for k, v in item.items() if k != "error"}
+                                if isinstance(item, dict) and "error" in item
+                                else item
+                            )
+                            for item in val
+                        ]
         return {
             "status": "success",
             "device_id": payload.device_id,
             "site_id": payload.site_id,
-            "dna_received": collect_device_dna(),
+            "dna_received": dna,
         }
     except HTTPException:
         raise
