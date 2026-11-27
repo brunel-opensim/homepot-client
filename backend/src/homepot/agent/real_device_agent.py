@@ -1074,6 +1074,7 @@ async def send_registration(
             "agent_version": config.get("app_version"),
             "local_ip": get_local_ip(),
             "hostname": socket.gethostname(),
+            "device_source": "physical",
             "wan_ip": get_wan_ip(),
             "peripherals": get_connected_peripherals(),
         }

@@ -1064,6 +1064,17 @@ class DatabaseService:
                 if existing_cmd is not None:
                     return existing_cmd
 
+            # Derive provenance from the device record so the command carries
+            # an immutable provenance snapshot (consistent with metrics/events).
+            from homepot.models import Device, derive_provenance
+
+            device_result = await session.execute(
+                select(Device).where(Device.id == device_id)
+            )
+            device = device_result.scalars().first()
+            _derived = derive_provenance(device) if device is not None else None
+            provenance = _derived.value if _derived is not None else None
+
             command = DeviceCommand(
                 command_id=str(uuid.uuid4()),
                 device_id=device_id,
@@ -1072,6 +1083,7 @@ class DatabaseService:
                 status=CommandStatus.PENDING,
                 issued_by=issued_by,
                 idempotency_key=idempotency_key,
+                provenance=provenance,
             )
             session.add(command)
             await session.commit()
