@@ -21,9 +21,9 @@ on:
     inputs:
       publish:
         description: 'Publish draft release (needed for auto-update on real devices)'
-        type: boolean
+        type: string
         required: false
-        default: false
+        default: 'false'
       api_base_url:
         description: 'Backend URL baked into the packaged app'
         type: string
@@ -513,7 +513,7 @@ jobs:
     needs: [package, sign-windows]
     runs-on: ubuntu-latest
     if: >-
-      github.event_name == 'workflow_dispatch' && github.event.inputs.publish == true &&
+      github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true' &&
       (needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped')
     permissions:
       contents: write
