@@ -3793,6 +3793,92 @@ def _process_command_impl(
     }
 
 
+def get_cpu_speed() -> Optional[float]:
+    """Return current CPU clock speed in MHz (best-effort, cross-platform).
+
+    Returns None when the speed cannot be determined.
+    """
+    # Try psutil first
+    try:
+        freq = psutil.cpu_freq()
+        if freq is not None and freq.current and freq.current > 100:
+            return round(float(freq.current), 0)
+    except Exception:  # noqa: BLE001
+        pass
+
+    if _is_windows_platform():
+        # Windows: try WMI
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "Get-CimInstance Win32_Processor | "
+                    "Select-Object -First 1 -ExpandProperty CurrentClockSpeed",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip()
+            if val.isdigit() and int(val) > 100:
+                return float(val)
+        except Exception:  # noqa: BLE001
+            pass
+        # Fallback: wmic
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["wmic", "cpu", "get", "CurrentClockSpeed", "/value"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in (out.stdout or "").splitlines():
+                if "CurrentClockSpeed" in line:
+                    val = line.split("=", 1)[-1].strip()
+                    if val.isdigit() and int(val) > 100:
+                        return float(val)
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "linux":
+        try:
+            with open("/proc/cpuinfo") as fh:
+                for line in fh:
+                    if "cpu MHz" in line:
+                        val = line.split(":", 1)[-1].strip()
+                        try:
+                            mhz = float(val)
+                            if mhz > 100:
+                                return round(mhz, 0)
+                        except ValueError:
+                            pass
+        except (OSError, ValueError):
+            pass
+
+    elif platform.system().lower() == "darwin":
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["sysctl", "-n", "hw.cpufrequency"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip()
+            try:
+                hz = float(val)
+                mhz = hz / 1e6
+                if mhz > 100:
+                    return round(mhz, 0)
+            except ValueError:
+                pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    return None
+
+
 def get_device_temperature() -> Dict[str, Any]:
     """Read device temperature sensors (best-effort, cross-platform).
 
@@ -4144,6 +4230,9 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
     # Temperature info (best-effort)
     temp_info = get_device_temperature()
 
+    # CPU speed (best-effort)
+    cpu_speed_mhz = get_cpu_speed()
+
     return {
         "device_id": config["device_id"],
         "device_name": config.get("device_name", ""),
@@ -4167,6 +4256,7 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
         "gpu_temp_c": temp_info.get("gpu_temp_c"),
         "system_temp_c": temp_info.get("system_temp_c"),
         "temp_source": temp_info.get("source"),
+        "cpu_speed_mhz": cpu_speed_mhz,
         "timestamp": utc_now_iso(),
     }
 
