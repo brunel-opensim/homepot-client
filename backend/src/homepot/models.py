@@ -226,7 +226,9 @@ def derive_provenance(device: "Device | None") -> Provenance | None:
         return Provenance.REAL
     if device.is_simulated:
         return Provenance.SIMULATED
-    return Provenance.REAL
+    # Default fallback: if device_source is not explicitly set, we cannot
+    # confirm physical origin. Return None (uncertain) instead of assuming REAL.
+    return None
 
 
 class EnrolmentIntentStatus(str, Enum):
@@ -671,6 +673,9 @@ class DeviceCommand(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Evidence provenance (snapshotted at write time)
+    provenance = Column(String(20), nullable=True, index=True)
 
     # Relationships
     device = relationship("Device", back_populates="commands")
