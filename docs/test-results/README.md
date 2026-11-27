@@ -38,4 +38,3 @@ test sections. Do not leave placeholder values (`DEVICE-XXXX-XXXX-XXXX`).
 
 Only the template (`windows-device-template.md`) and completed test reports
 should be in this directory. Do not add fix lists, notes, or other files.
-EOF
