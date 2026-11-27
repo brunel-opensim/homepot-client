@@ -353,7 +353,7 @@ export default function Permissions() {
         {overrideChange && (
           <div className="px-5 pt-3">
             <div className="bg-amber-950 border border-amber-800 rounded-lg px-4 py-2.5 flex items-start gap-2">
-              <span className="text-amber-400 text-sm shrink-0">⚠</span>
+              <span className="text-amber-400 text-sm shrink-0">!</span>
               <p className="text-xs text-amber-300">
                 An operator or administrator has updated this device's
                 permissions
@@ -374,7 +374,7 @@ export default function Permissions() {
         {error && (
           <div className="px-5 pt-3">
             <div className="bg-red-950 border border-red-800 rounded-lg px-4 py-2.5 flex items-center gap-2">
-              <span className="text-red-400 text-sm shrink-0">⚠</span>
+              <span className="text-red-400 text-sm shrink-0">!</span>
               <p className="text-xs text-red-300">{error}</p>
             </div>
           </div>

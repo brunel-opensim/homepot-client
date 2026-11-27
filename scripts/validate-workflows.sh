@@ -617,10 +617,10 @@ try:
         print('Dependencies compatible')
         exit(0)
     else:
-        print('⚠ Dependency conflicts detected')
+        print("WARNING: Dependency conflicts detected")
         exit(1)
 except Exception as e:
-    print(f'⚠ Cannot verify dependencies: {e}')
+    print(f"WARNING: Cannot verify dependencies: {e}")
     exit(1)
 " >/dev/null 2>&1; then
             echo -e "${GREEN}Valid${NC}"
@@ -735,7 +735,7 @@ try:
             missing_deps.append(imp)
     
     if missing_deps:
-        print(f'⚠ Potential missing dependencies: {missing_deps}')
+        print(f"WARNING: Potential missing dependencies: {missing_deps}")
         exit(1)
     else:
         print('All external imports appear to be in requirements.txt')

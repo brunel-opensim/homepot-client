@@ -9,11 +9,11 @@ production. It is a discussion document — no code changes.
 
 | Gate | Name | Status on Brunel 001 | Trust impact | Notes |
 |------|------|---------------------|--------------|-------|
-| A | Contract & Infrastructure | ✅ Pass (score 1.0) | Full credit | Schema conformance + DB readiness both pass |
-| B | Data Integrity | ✅ Pass (after fix) | 0.667 partial credit | Continuity/gap checks treated as not-applicable (0 health_check samples) |
-| C | Context Readiness | ✅ Pass | Full credit | All required blocks present, context bounded |
-| D | Permission & Capability | ✅ Pass | Full credit | Device permissions consistent with capabilities |
-| E | Lifecycle Integrity | ✅ Pass | Full credit | Device active, healthy, credentials valid |
+| A | Contract & Infrastructure | Yes Pass (score 1.0) | Full credit | Schema conformance + DB readiness both pass |
+| B | Data Integrity | Yes Pass (after fix) | 0.667 partial credit | Continuity/gap checks treated as not-applicable (0 health_check samples) |
+| C | Context Readiness | Yes Pass | Full credit | All required blocks present, context bounded |
+| D | Permission & Capability | Yes Pass | Full credit | Device permissions consistent with capabilities |
+| E | Lifecycle Integrity | Yes Pass | Full credit | Device active, healthy, credentials valid |
 
 **Overall trust score: 1.0** (all gates pass). However, calibration data shows
 the *observed* success rate is only 62.5% for plans rated at trust 1.0 — a

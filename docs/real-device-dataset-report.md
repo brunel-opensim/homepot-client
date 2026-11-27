@@ -70,14 +70,14 @@ No MobiVisor records are available for sharing.
 
 ## 2. Candidate dataset assessment
 
-### A. Device resource telemetry — ✅ QUALIFIES
+### A. Device resource telemetry — Yes QUALIFIES
 
 **Source table:** `device_metrics` (29,640 rows for Brunel Device 001)
 
 All rows have `provenance=real` (snapshotted at write time). Timestamped CPU,
 memory, disk, and network latency measurements collected every 30 seconds.
 
-### B. Device-management events — ✅ QUALIFIES (partial)
+### B. Device-management events — Yes QUALIFIES (partial)
 
 **Source tables:**
 - `device_commands` (365 rows) — command outcomes with execution results
@@ -87,7 +87,7 @@ memory, disk, and network latency measurements collected every 30 seconds.
 All commands were executed on the physical device. Alerts are generated from real
 network measurements. State history records the bootstrap-key enrolment.
 
-### C. Backend performance/error records — ⚠️ PARTIALLY QUALIFIES
+### C. Backend performance/error records — Partial PARTIALLY QUALIFIES
 
 **Alerts (3,364 rows)** are device-attributable: they record network latency
 exceeding 200ms on the physical device's primary interface. These qualify as

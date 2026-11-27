@@ -15,7 +15,7 @@ they can pick from or adapt.
 ## How it would work
 
 1. **Trigger:** Typing `/` in the AskAI input opens a suggestion panel.
-   Alternatively, a small "💡" icon next to the input opens it.
+   Alternatively, a small "Tip" icon next to the input opens it.
 2. **Suggestions:** A list of pre-defined query templates, optionally filtered
    by context (device page vs. dashboard).
 3. **Selection:** Clicking a suggestion fills the input (or sends it
