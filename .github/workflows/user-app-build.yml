@@ -446,22 +446,25 @@ jobs:
     # Opt-in: only runs when the SignPath secrets are configured. Until the
     # project is approved by the SignPath Foundation this job is skipped and the
     # publish job ships the unsigned artefacts, matching the documented status.
-    if: ${{ needs.package.result == 'success' && secrets.SIGNPATH_API_TOKEN != '' }}
+    if: ${{ needs.package.result == 'success' }}
     permissions:
       actions: read
       contents: read
 
     steps:
       - name: Download Windows package artifact
+        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         uses: actions/download-artifact@v4
         with:
           name: release-windows-latest
           path: unsigned
 
       - name: Show unsigned Windows artifacts
+        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         run: find unsigned -type f -name '*.exe' -o -name '*.msi' | sort
 
       - name: Re-upload unsigned Windows binaries as a GitHub artifact
+        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         id: upload-unsigned
         uses: actions/upload-artifact@v4
         with:
@@ -473,6 +476,7 @@ jobs:
           if-no-files-found: error
 
       - name: Submit signing request to SignPath
+        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         id: sign
         uses: signpath/github-action-submit-signing-request@v3
         with:
@@ -485,6 +489,7 @@ jobs:
           output-artifact-directory: signed
 
       - name: Upload signed Windows artifacts
+        if: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: release-windows-signed
