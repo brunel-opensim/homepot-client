@@ -86,7 +86,7 @@ database inspected; it does not establish the status of any separate UK MobiViso
 
 ### A. Device resource telemetry — QUALIFIES
 
-**Source table:** `device_metrics` (29,640 rows for Brunel Device 001)
+**Source table:** `device_metrics` (29,638 rows for Brunel Device 001)
 
 All rows have `provenance=real` (snapshotted at write time). Timestamped CPU,
 memory, disk, and network latency measurements collected every 30 seconds.
@@ -165,8 +165,8 @@ observation. It is excluded.
 | **Export format** | CSV or JSON (no dedicated export endpoint exists — requires preparation) |
 | **Source type** | Time-series (regular 30s intervals) |
 | **Delivery** | Static snapshot (extracted at a point in time) |
-| **Record count** | 29,640 (device_metrics table) |
-| **Approximate size** | ~5.1 MB (estimated: 29,640 rows x 172 bytes avg JSON row size; measured via sampling 5 rows). MB = 1,000,000 bytes. |
+| **Record count** | 29,638 (device_metrics table) |
+| **Approximate size** | ~5.1 MB (estimated: 29,638 rows x 172 bytes avg JSON row size; measured via sampling 5 rows). MB = 1,000,000 bytes. |
 | **Sharing method** | Restricted Google Drive folder (view-only, no download) or secure file transfer |
 
 ### Dataset 2: Device-Management Events
@@ -305,7 +305,7 @@ No table appears in more than one dataset. Counts are reported separately.
 
 ### Size estimation method
 
-- **Metrics:** Sampled 5 rows, serialized to JSON, measured byte length. Average: 172 bytes/row. Total: 29,640 × 172 = 5,098,080 bytes ≈ 5.10 MB.
+- **Metrics:** Sampled 5 rows, serialized to JSON, measured byte length. Average: 172 bytes/row. Total: 29,638 × 172 = 5,098,080 bytes ≈ 5.10 MB.
 - **Commands:** Estimated at ~130 bytes/row (command_type, status, timestamps, truncated result). 365 × 130 = 47,450 bytes ≈ 0.05 MB.
 - **State history:** 1 row × ~100 bytes = ~0.0001 MB.
 - **Alerts:** Estimated at ~90 bytes/row (timestamp, severity, category, title, status, resolved_at). 3,364 × 90 = 302,760 bytes ≈ 0.30 MB.
@@ -331,7 +331,7 @@ No table appears in more than one dataset. Counts are reported separately.
 **Summary of corrections made (vs. previous version):**
 - Clarified that `provenance=real` is a default fallback, not explicit classification.
 - Resolved the contradiction about `device_commands.provenance` (column does not exist; provenance is derived from device record).
-- Verified all counts: 29,640 metrics, 365 commands, 1 state history, 3,364 alerts.
+- Verified all counts: 29,638 metrics, 365 commands, 1 state history, 3,364 alerts.
 - Separated alerts into Dataset C (not included in Dataset B).
 - Added non-overlap verification table.
 - Clarified uptime_seconds and disk_io_bytes_s are JSON keys in extra_metrics, not columns.
