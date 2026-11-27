@@ -32,6 +32,15 @@
 
 set -euo pipefail
 
+# Security: only the server administrator (demouser) may create users via this
+# script. It requires SSH access to the server and the database credentials.
+CURRENT_USER="$(whoami 2>/dev/null || id -un 2>/dev/null || echo unknown)"
+if [ "$CURRENT_USER" != "demouser" ] && [ "$CURRENT_USER" != "root" ]; then
+  echo -e "${RED}Error: this script may only be run by the server administrator (demouser).${NC}" >&2
+  echo "Current user: $CURRENT_USER" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=scripts/lib/db.sh
