@@ -517,14 +517,7 @@ async def _report_status_to_live_logs(
     client: httpx.AsyncClient, config: Dict[str, Any], report: Dict[str, Any]
 ) -> None:
     """Report a status snapshot to Live Logs via ``POST /api/v1/agent/logs``."""
-    uptime = report.get("uptime_seconds") or 0
-    message = (
-        "Status report: ONLINE | "
-        f"uptime {int(uptime)}s | "
-        f"cpu {report.get('cpu_usage')}% | "
-        f"mem {report.get('memory_usage')}% | "
-        f"disk {report.get('disk_usage')}%"
-    )
+    message = "Status report: ONLINE"
     battery = report.get("battery_percent")
     if battery is not None:
         charging = " (charging)" if report.get("battery_charging") else ""
@@ -1445,10 +1438,6 @@ async def live_logs_loop(
             report = build_status_report(config)
             signature = json.dumps(
                 {
-                    "cpu_usage": report.get("cpu_usage"),
-                    "memory_usage": report.get("memory_usage"),
-                    "disk_usage": report.get("disk_usage"),
-                    "uptime_seconds": report.get("uptime_seconds"),
                     "battery_percent": report.get("battery_percent"),
                     "battery_charging": report.get("battery_charging"),
                     "network_connection_type": report.get("network_connection_type"),
