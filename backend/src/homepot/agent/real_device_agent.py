@@ -538,6 +538,17 @@ async def _report_status_to_live_logs(
             message += f" | net wifi ({ssid})"
         else:
             message += f" | net {conn_type}"
+
+    # Temperature info
+    cpu_temp = report.get("cpu_temp_c")
+    sys_temp = report.get("system_temp_c")
+    gpu_temp = report.get("gpu_temp_c")
+    if cpu_temp is not None:
+        message += f" | cpu {cpu_temp}C"
+    elif sys_temp is not None:
+        message += f" | sys {sys_temp}C"
+    if gpu_temp is not None:
+        message += f" | gpu {gpu_temp}C"
     payload = {
         "device_id": config["device_id"],
         "level": "info",
@@ -1437,6 +1448,9 @@ async def live_logs_loop(
                     "battery_charging": report.get("battery_charging"),
                     "network_connection_type": report.get("network_connection_type"),
                     "network_ssid": report.get("network_ssid"),
+                    "cpu_temp_c": report.get("cpu_temp_c"),
+                    "system_temp_c": report.get("system_temp_c"),
+                    "gpu_temp_c": report.get("gpu_temp_c"),
                 },
                 sort_keys=True,
             )
