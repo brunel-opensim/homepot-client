@@ -512,7 +512,7 @@ jobs:
     name: Publish Draft Release
     needs: [package, sign-windows]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && (needs.sign-windows.result == 'success' || needs.sign-windows.result == 'skipped')
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
 
