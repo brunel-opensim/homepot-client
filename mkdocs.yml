@@ -199,7 +199,6 @@ nav:
           - Peripheral Discovery: peripheral-discovery.md
           - Configuration (MDM): device-configuration-mdm.md
       - Platform Integration:
-          - Mobivisor (Android): mobivisor-integration.md
           - POS System (Dummy): POSDummy-Integration.md
       - Agents & Simulation:
           - Agent Simulation: agent-simulation.md

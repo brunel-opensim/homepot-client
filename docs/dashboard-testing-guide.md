@@ -193,7 +193,6 @@ http://localhost:8000/docs
   - /api/v1/agents
   - /api/v1/health
   - /api/v1/push
-  - /api/v1/mobivisor
 
 **How to Verify:**
 1. Expand each section

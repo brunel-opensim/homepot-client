@@ -75,10 +75,8 @@ description is supported by partner confirmation.
 All other devices have been purged from the database. Only Brunel Device 001 remains.
 No simulated or emulator devices are present.
 
-### MobiVisor
-No MobiVisor tables exist in this database. MobiVisor is not in use on this deployment.
-No MobiVisor records are available for sharing. (This finding is scoped to the
-database inspected; it does not establish the status of any separate UK MobiVisor deployment.)
+### External MDM integration
+No external MDM integration tables exist in this database. MDM integration is not in use on this deployment. No MDM records are available for sharing.
 
 ---
 
@@ -288,7 +286,7 @@ SELECT * FROM device_metrics WHERE device_id = 44 ORDER BY timestamp DESC LIMIT 
 3. **General server traffic:** Not included. Only device-attributable records.
 4. **Customer/order/payment data:** Not present in any qualifying dataset.
 5. **Credentials/tokens:** Excluded from all proposed exports.
-6. **MobiVisor:** No tables exist in this database; no records available.
+6. **External MDM:** No tables exist in this database; no records available.
 7. **Error logs / user activity:** No device_id column; cannot be attributed. Excluded.
 8. **Alerts not in Dataset B:** Alerts are reported separately (Dataset 3) to avoid overlap.
 
@@ -337,6 +335,6 @@ No table appears in more than one dataset. Counts are reported separately.
 - Clarified uptime_seconds and disk_io_bytes_s are JSON keys in extra_metrics, not columns.
 - Added size estimation method with sample size and MB definition.
 - Added 8 factual questions for UK partners.
-- Scoped MobiVisor finding to this database only.
+- Scoped external MDM finding to this database only.
 EOF
 echo "written"

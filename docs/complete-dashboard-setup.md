@@ -276,10 +276,6 @@ curl -X POST http://localhost:8000/api/v1/auth/login \
 - `POST /push/send-bulk` - Send bulk notifications
 - `GET /push/platforms` - List available platforms
 
-### Mobivisor (`/api/v1/mobivisor`)
-
-- Integration with Mobivisor device management
-
 ## Environment Configuration
 
 ### Backend Configuration

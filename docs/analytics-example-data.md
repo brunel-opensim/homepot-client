@@ -18,7 +18,7 @@ SELECT * FROM api_request_logs ORDER BY timestamp DESC LIMIT 20;
 | 244 | 2025-12-07 15:23:30 | /api/v1/sites                 | GET    | 200    | 35          | usr_123 | 192.168.1.45  | Mozilla/5.0 Chrome/120.0      |
 | 243 | 2025-12-07 15:20:12 | /api/v1/devices/dev_042       | PUT    | 200    | 89          | usr_456 | 192.168.1.67  | Mozilla/5.0 Firefox/121.0     |
 | 242 | 2025-12-07 15:18:55 | /api/v1/auth/login            | POST   | 200    | 156         | null    | 192.168.1.67  | Mozilla/5.0 Firefox/121.0     |
-| 241 | 2025-12-07 15:15:20 | /api/v1/mobivisor/groups      | GET    | 200    | 67          | usr_789 | 192.168.1.99  | PostmanRuntime/7.36.0         |
+
 | 240 | 2025-12-07 15:12:08 | /api/v1/devices/dev_001       | GET    | 404    | 23          | usr_123 | 192.168.1.45  | Mozilla/5.0 Chrome/120.0      |
 | 239 | 2025-12-07 15:10:44 | /api/v1/analytics/requests    | GET    | 200    | 234         | usr_789 | 192.168.1.99  | PostmanRuntime/7.36.0         |
 | 238 | 2025-12-07 14:58:33 | /api/v1/devices               | POST   | 201    | 312         | usr_456 | 192.168.1.67  | Mozilla/5.0 Firefox/121.0     |
@@ -28,7 +28,7 @@ SELECT * FROM api_request_logs ORDER BY timestamp DESC LIMIT 20;
 | 234 | 2025-12-07 13:55:42 | /api/v1/auth/logout           | POST   | 200    | 45          | usr_456 | 192.168.1.67  | Mozilla/5.0 Firefox/121.0     |
 | 233 | 2025-12-07 13:30:18 | /api/v1/devices/dev_042       | DELETE | 204    | 178         | usr_789 | 192.168.1.99  | PostmanRuntime/7.36.0         |
 | 232 | 2025-12-07 12:45:33 | /api/v1/sites/site_003        | GET    | 200    | 56          | usr_123 | 192.168.1.45  | Mozilla/5.0 Chrome/120.0      |
-| 231 | 2025-12-07 11:20:05 | /api/v1/mobivisor/devices     | GET    | 200    | 123         | usr_789 | 192.168.1.99  | PostmanRuntime/7.36.0         |
+
 
 **Insights from this data:**
 - User `usr_123` is the most active (5 requests shown)
