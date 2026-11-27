@@ -212,7 +212,7 @@ nav:
           - Team Tasks (Readiness): real-device-readiness-tasks.md
 
   - User App:
-      - Getting Started: get_start_userapp.md
+      - Getting Started: get-start-userapp.md
       - Frontend Guide: user-app-frontend-guide.md
       - Releases & Versioning: user-app-releases.md
       - Windows Install & Uninstall Troubleshooting: user-app-windows-troubleshooting.md
