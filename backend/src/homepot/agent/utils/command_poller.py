@@ -3793,6 +3793,154 @@ def _process_command_impl(
     }
 
 
+def get_device_temperature() -> Dict[str, Any]:
+    """Read device temperature sensors (best-effort, cross-platform).
+
+    Returns a dict with:
+      - cpu_temp_c: CPU temperature in Celsius (or None)
+      - gpu_temp_c: GPU temperature in Celsius (or None)
+      - system_temp_c: System/ambient temperature in Celsius (or None)
+      - source: detection method used
+    """
+    info: Dict[str, Any] = {
+        "cpu_temp_c": None,
+        "gpu_temp_c": None,
+        "system_temp_c": None,
+        "source": None,
+    }
+
+    # Try psutil sensors (available on some Linux builds)
+    try:
+        sensors = getattr(psutil, "sensors_temperatures", None)
+        if callable(sensors):
+            temps = sensors()
+            if temps:
+                # Look for CPU-related sensors
+                for name, entries in temps.items():
+                    name_lower = name.lower()
+                    for entry in entries:
+                        if entry.current is not None:
+                            if "cpu" in name_lower or "core" in name_lower:
+                                if info["cpu_temp_c"] is None:
+                                    info["cpu_temp_c"] = round(float(entry.current), 1)
+                            elif "gpu" in name_lower:
+                                if info["gpu_temp_c"] is None:
+                                    info["gpu_temp_c"] = round(float(entry.current), 1)
+                            else:
+                                if info["system_temp_c"] is None:
+                                    info["system_temp_c"] = round(
+                                        float(entry.current), 1
+                                    )
+                if info["cpu_temp_c"] is not None or info["system_temp_c"] is not None:
+                    info["source"] = "psutil"
+                    return info
+    except Exception:  # noqa: BLE001
+        pass
+
+    if _is_windows_platform():
+        # Windows: try WMI thermal zone
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "Get-CimInstance MSAcpi_ThermalZoneTemperature | "
+                    "Select-Object -First 1 -ExpandProperty CurrentTemperature",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip()
+            if val.isdigit():
+                # WMI returns temperature in tenths of Kelvin
+                kelvin_tenths = int(val)
+                celsius = (kelvin_tenths / 10.0) - 273.15
+                info["system_temp_c"] = round(celsius, 1)
+                info["source"] = "wmi"
+                return info
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Fallback: try nvidia-smi for GPU temp
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip()
+            if val.isdigit():
+                info["gpu_temp_c"] = float(val)
+                info["source"] = "nvidia-smi"
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "linux":
+        # Linux: read from /sys/class/thermal
+        try:
+            import glob as _glob
+
+            zones = sorted(_glob.glob("/sys/class/thermal/thermal_zone*/temp"))
+            for zone_path in zones:
+                try:
+                    with open(zone_path) as fh:
+                        millidegrees = int(fh.read().strip())
+                        celsius = millidegrees / 1000.0
+                        zone_type_path = zone_path.replace("/temp", "/type")
+                        zone_type = ""
+                        try:
+                            with open(zone_type_path) as fh2:
+                                zone_type = fh2.read().strip().lower()
+                        except OSError:
+                            pass
+                        if (
+                            "cpu" in zone_type
+                            or "x86" in zone_type
+                            or "soc" in zone_type
+                        ):
+                            if info["cpu_temp_c"] is None:
+                                info["cpu_temp_c"] = round(celsius, 1)
+                        elif "gpu" in zone_type:
+                            if info["gpu_temp_c"] is None:
+                                info["gpu_temp_c"] = round(celsius, 1)
+                        else:
+                            if info["system_temp_c"] is None:
+                                info["system_temp_c"] = round(celsius, 1)
+                except (ValueError, OSError):
+                    continue
+            if info["cpu_temp_c"] is not None or info["system_temp_c"] is not None:
+                info["source"] = "sysfs"
+                return info
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "darwin":
+        # macOS: try osx-cpu-temp or powermetrics (requires sudo)
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["osx-cpu-temp"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip().replace("°C", "").strip()
+            try:
+                info["cpu_temp_c"] = round(float(val), 1)
+                info["source"] = "osx-cpu-temp"
+                return info
+            except ValueError:
+                pass
+        except FileNotFoundError:
+            pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    return info
+
+
 def get_network_connection_info() -> Dict[str, Any]:
     """Detect the active network connection type and details (best-effort).
 
@@ -3993,6 +4141,9 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
     # Network connection info (best-effort)
     net_info = get_network_connection_info()
 
+    # Temperature info (best-effort)
+    temp_info = get_device_temperature()
+
     return {
         "device_id": config["device_id"],
         "device_name": config.get("device_name", ""),
@@ -4012,6 +4163,10 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
         "network_connection_type": net_info.get("connection_type"),
         "network_ssid": net_info.get("ssid"),
         "network_interface": net_info.get("interface"),
+        "cpu_temp_c": temp_info.get("cpu_temp_c"),
+        "gpu_temp_c": temp_info.get("gpu_temp_c"),
+        "system_temp_c": temp_info.get("system_temp_c"),
+        "temp_source": temp_info.get("source"),
         "timestamp": utc_now_iso(),
     }
 
