@@ -77,7 +77,7 @@ To retrieve actual records for verification:
 4.  **Agent Simulation:** The `DeviceAgent` class in `agents.py` also automatically generates these records during simulation.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Data is correctly flowing from API/Agents to the Database.
 -   The `response_data` JSON column is successfully storing complex nested structures (device info, services, metrics).
 -   Both healthy (200) and unhealthy (500) states are being captured.
@@ -146,7 +146,7 @@ To retrieve actual records for verification:
 4.  **Storage:** Saved directly via `db.add(device_metrics)` in the same transaction block as the health check.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Dedicated table for time-series analysis (AI training ready).
 -   Captures key performance indicators (CPU, Memory, Disk).
 -   `extra_metrics` JSON field successfully stores context like service status and device info.
@@ -189,7 +189,7 @@ To retrieve actual records for verification:
 4.  **Storage:** Asynchronously logs to `APIRequestLog` model via `_log_request`.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Middleware is correctly intercepting requests.
 -   Both successful (200) and failed (404) requests are logged.
 -   Performance timing (`response_time_ms`) is accurate.
@@ -236,7 +236,7 @@ To retrieve actual records for verification:
 4.  **Context:** Automatically populates `reason` with the specific error message (e.g., "Payment gateway timeout") and `changed_by` as "system".
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Correctly captures state transitions (e.g., Online → Error).
 -   The `reason` field is providing high-value, human-readable context (specific error messages).
 -   Logic ensures records are only created on *actual* state changes, preventing database bloat.
@@ -294,7 +294,7 @@ To retrieve actual records for verification:
 4.  **AI Context:** Crucially, it captures `performance_before` (the health check result) to allow future AI models to correlate config changes with performance impacts.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Successfully tracks configuration version changes.
 -   JSON fields (`old_value`, `new_value`) allow for flexible config structures.
 -   **Key Feature:** The `performance_before` field is being populated, which is critical for the "Predictive Maintenance" AI goal (correlating changes to failures).
@@ -336,7 +336,7 @@ To retrieve actual records for verification:
 3.  **Purpose:** Provides the "baseline" for AI models. If a device is active at 3 AM on a Tuesday (when `close_time` is 22:00), it's an anomaly.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Schema correctly handles time-based constraints (`time` type).
 -   Includes critical fields for AI baselining (`expected_transaction_volume`, `peak_hours`).
 -   Data is populated for `site-001` covering the full week.
@@ -384,7 +384,7 @@ To retrieve actual records for verification:
 4.  **Linking:** Has foreign key columns (`job_id`, `site_id`, `device_id`) to link events to specific entities.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Successfully tracking system lifecycle events.
 -   Schema is robust with specific columns for linking to other entities (Jobs, Sites, Devices).
 -   `event_metadata` provides flexibility for different event types.
@@ -436,7 +436,7 @@ To retrieve actual records for verification:
     -   Stores structured `context` (e.g., the specific config URL that failed).
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Captures high-fidelity error data including full stack traces.
 -   Structured categorization (`category`, `severity`, `error_code`) makes this table ready for automated alerting or AI analysis.
 -   The `context` JSON field is successfully storing relevant variable states at the time of the error.
@@ -489,7 +489,7 @@ To retrieve actual records for verification:
 4.  **Error Handling:** The sample data shows a failed job (`job-1538740c`) with a detailed SQL error message stored in `error_message`, proving robust failure tracking.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Successfully tracks the lifecycle of background tasks.
 -   Captures detailed configuration parameters (`config_url`, `version`).
 -   **Critical Finding:** The sample data revealed a real SQL error (`operator does not exist: character varying = integer`) in a previous job (`job-1538740c`). This validates that the error logging within the Jobs table is working perfectly to catch implementation issues.
@@ -541,7 +541,7 @@ To retrieve actual records for verification:
 3.  **AI Value:** The `extra_data` field provides the "success rate" (e.g., 3/5 devices), which is crucial for AI to learn reliability patterns (e.g., "Jobs for Site 1 often fail on Tuesdays").
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Successfully aggregates job results.
 -   Captures partial failures (e.g., 2 out of 5 devices failed) rather than just a binary success/failure.
 -   Links back to the main `jobs` table via `job_id`.
@@ -587,7 +587,7 @@ To retrieve actual records for verification:
 4.  **Integration:** Linked to `health_checks`, `device_metrics`, and `jobs` via `device_id`.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Correctly stores inventory data.
 -   `config` JSON field allows for flexible per-device settings.
 -   `status` field is being actively updated by the agent simulation (as seen in the `updated_at` timestamps).
@@ -622,7 +622,7 @@ To retrieve actual records for verification:
 4.  **AI Value:** Provides the geographical/logical grouping for analytics (e.g., "Compare performance of Downtown vs. West Branch").
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Correctly stores location metadata.
 -   Serves as the root of the hierarchy (Site -> Device).
 -   Sample data confirms active sites are populated.
@@ -658,7 +658,7 @@ To retrieve actual records for verification:
 4.  **Role:** Serves as the `created_by` reference for `jobs` and `audit_logs`.
 
 ### Validation Status
-✓ **Verified.**
+Yes **Verified.**
 -   Standard user management table.
 -   Security best practices (hashed passwords) are evident.
 -   Linked correctly to other entities (Jobs, Audits).

@@ -403,9 +403,9 @@ payload = PushNotificationPayload(
 result = await provider.send_notification(device_token, payload)
 
 if result.success:
-    print(f"✓ Notification sent: {result.message}")
+    print(f"Yes Notification sent: {result.message}")
 else:
-    print(f"✗ Failed: {result.message} ({result.error_code})")
+    print(f"No Failed: {result.message} ({result.error_code})")
 ```
 
 ### Send Bulk Notifications

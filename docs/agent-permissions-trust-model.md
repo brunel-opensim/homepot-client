@@ -58,10 +58,10 @@ this through device-reported OS DNA (set at provision/registration time):
 
 | OS | `root_access` | `command_execution` | `process_monitoring` | `filesystem_access` | `network_monitoring` |
 |---|---|---|---|---|---|
-| Linux | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Windows | ✗ | ✓ | ✓ | ✓ | ✓ |
-| iOS (non-jailbroken) | ✗ | ✗ | ✗ | ✗ | ✓ |
-| Android | ✗ | ✓ | ✓ | ✓ | ✓ |
+| Linux | Yes | Yes | Yes | Yes | Yes |
+| Windows | No | Yes | Yes | Yes | Yes |
+| iOS (non-jailbroken) | No | No | No | No | Yes |
+| Android | No | Yes | Yes | Yes | Yes |
 
 A future capability-to-permission mapping layer will reject PATCH requests
 for permissions the device's OS cannot support.
