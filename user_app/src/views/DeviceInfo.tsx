@@ -495,7 +495,7 @@ export default function DeviceInfo() {
           {unpairStatus === 'pending-revocation' ? (
             <div className="flex flex-col gap-2 bg-amber-950 border border-amber-800 rounded-xl p-4">
               <p className="text-amber-300 text-xs font-medium text-center">
-                ⚠  Local reset — server revocation pending
+                !  Local reset — server revocation pending
               </p>
               <p className="text-amber-400 text-xs text-center">
                 The server could not be reached. Local credentials were cleared

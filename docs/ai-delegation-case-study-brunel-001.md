@@ -185,13 +185,13 @@ Ollama for speed; trust gates still enforced.
 
 | Scenario | Action | Plan status | Outcome | Verified | Notes |
 |----------|--------|-------------|---------|----------|-------|
-| S1 — Health check | `health_check` | `succeeded` | verified=true | ✅ | Baseline run; trust 1.0 |
-| S2 — Config change | `update_config` (volume 50) | `succeeded` | verified=true | ✅ | Volume set to 50%, verified (before=0, after=50). Device config persisted with volume=50. |
-| S3 — Rollback drill | `update_config` (brightness "abc") | `rolled_back` | rolled_back=true, rollback_success=true | ✅ | Per-key failure → rollback restored brightness=60. Config persisted via PR #819. |
+| S1 — Health check | `health_check` | `succeeded` | verified=true | Yes | Baseline run; trust 1.0 |
+| S2 — Config change | `update_config` (volume 50) | `succeeded` | verified=true | Yes | Volume set to 50%, verified (before=0, after=50). Device config persisted with volume=50. |
+| S3 — Rollback drill | `update_config` (brightness "abc") | `rolled_back` | rolled_back=true, rollback_success=true | Yes | Per-key failure → rollback restored brightness=60. Config persisted via PR #819. |
 | S5 — Per-step approval | `restart_service` (spooler) | `executing` (retry) | — | — | T3 step paused in `awaiting_approval`; released on "Approve step"; retry re-gated |
 | S6 — Dry run | `health_check` | `pending_approval` (unchanged) | — | — | Policy allowed, predicted changes shown, no command queued |
-| S7 — Fleet command | `health_check` (1 device at site) | `succeeded` | verified=true | ✅ | Each step tracked independently |
-| S8 — Delegate and report | `health_check` | `succeeded` | verified=true | ✅ | AI reported "Yes, succeeded" via `get_action_plan_status` |
+| S7 — Fleet command | `health_check` (1 device at site) | `succeeded` | verified=true | Yes | Each step tracked independently |
+| S8 — Delegate and report | `health_check` | `succeeded` | verified=true | Yes | AI reported "Yes, succeeded" via `get_action_plan_status` |
 
 ### S2 detail — config change (volume 50)
 

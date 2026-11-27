@@ -70,11 +70,11 @@ command*.
 
 | Layer | AI sees? | Technician sees (proposal)? | Technician sees (result)? |
 |-------|----------|----------------------------|---------------------------|
-| Action name (e.g. `update_config`) | ✅ | ✅ | ✅ |
-| JSON params (e.g. `{"brightness": 30}`) | ✅ | ✅ | ✅ |
-| Device command type (e.g. `update_config`) | ❌ (indirect) | ❌ | ✅ (in command history) |
-| OS command / script (e.g. PowerShell) | ❌ | ❌ | ✅ (in result stdout/stderr) |
-| Final payload (title + data) | ❌ | ❌ | ✅ (in command history) |
+| Action name (e.g. `update_config`) | Yes | Yes | Yes |
+| JSON params (e.g. `{"brightness": 30}`) | Yes | Yes | Yes |
+| Device command type (e.g. `update_config`) | No (indirect) | No | Yes (in command history) |
+| OS command / script (e.g. PowerShell) | No | No | Yes (in result stdout/stderr) |
+| Final payload (title + data) | No | No | Yes (in command history) |
 
 ## Options
 
