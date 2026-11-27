@@ -549,6 +549,11 @@ async def _report_status_to_live_logs(
         message += f" | sys {sys_temp}C"
     if gpu_temp is not None:
         message += f" | gpu {gpu_temp}C"
+
+    # CPU speed
+    cpu_speed = report.get("cpu_speed_mhz")
+    if cpu_speed is not None:
+        message += f" | {cpu_speed / 1000:.1f}GHz"
     payload = {
         "device_id": config["device_id"],
         "level": "info",
@@ -1451,6 +1456,7 @@ async def live_logs_loop(
                     "cpu_temp_c": report.get("cpu_temp_c"),
                     "system_temp_c": report.get("system_temp_c"),
                     "gpu_temp_c": report.get("gpu_temp_c"),
+                    "cpu_speed_mhz": report.get("cpu_speed_mhz"),
                 },
                 sort_keys=True,
             )
