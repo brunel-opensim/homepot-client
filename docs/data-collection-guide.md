@@ -74,28 +74,28 @@ HOMEPOT Data Collection Validation
 ======================================================================
 Minimum data requirement: 3 days
 
-✓ Database Connectivity: Connected
-✓ Agent Activity: 12 devices active
-✓ Device Metrics: 45620 records (2.7 days)
+Yes Database Connectivity: Connected
+Yes Agent Activity: 12 devices active
+Yes Device Metrics: 45620 records (2.7 days)
 ! Job Outcomes: Only 1.2/3.0 days
-✓ Device State History: 234 records (2.7 days)
-✓ Error Logs: 48 records (2.7 days)
-✓ Configuration History: 15 records (2.7 days)
-✓ Site Operating Schedules: 7 schedules configured
+Yes Device State History: 234 records (2.7 days)
+Yes Error Logs: 48 records (2.7 days)
+Yes Configuration History: 15 records (2.7 days)
+Yes Site Operating Schedules: 7 schedules configured
 
 Data Quality Checks:
-  ✓ All data within expected ranges
+  Yes All data within expected ranges
 
 Collection Continuity:
-  ✓ Continuous data collection confirmed
+  Yes Continuous data collection confirmed
 
 ======================================================================
 Validation Summary
 ======================================================================
 Total Checks: 9
-  ✓ Passed: 8
+  Yes Passed: 8
   ! Warnings: 1
-  ✗ Failed: 0
+  No Failed: 0
 
 ! Overall Status: WARNING
 Some warnings detected. Review recommendations below.
@@ -287,7 +287,7 @@ The AI uses this data to:
 You're done when validation shows:
 
 ```
-✓ Overall Status: PASSED
+Yes Overall Status: PASSED
 All checks passed! Data collection is healthy.
 ```
 

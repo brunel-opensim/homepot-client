@@ -12,7 +12,7 @@ is active.
 | **Data leaves server** | No | Yes | Yes |
 | **Typical latency** | ~100–180 s (CPU-only host) | ~2–5 s | ~2–5 s |
 | **Cost** | Free (hardware) | Pay per token | Pay per token |
-| **Default** | ✓ | – | – |
+| **Default** | Yes | – | – |
 
 !!! tip "When to use which"
     Use **Ollama** for production and any real device data: prompts never leave
@@ -307,9 +307,9 @@ configuration issue.
 | `context_budget` | caps enriched context (chars) | same | same | Shared default 2000; overridable via `external.<provider>.context_budget` |
 | `num_predict` | `num_predict` | `max_tokens` | `max_tokens` | Caps **output** for all; overridable via `external.<provider>.num_predict` |
 | `memory_n_results` | recalled memories | same | same | Shared default 3; overridable via `external.<provider>.memory_n_results` |
-| `temperature` | ✓ | ✓ | not sent | Installed Anthropic SDK rejects it |
-| `keep_alive` | ✓ | ignored | ignored | Keeps local model resident (Ollama only) |
-| `max_concurrent` | ✓ | ✓ | ✓ | Overridable via `external.<provider>.max_concurrent`; per-provider gate |
+| `temperature` | Yes | Yes | not sent | Installed Anthropic SDK rejects it |
+| `keep_alive` | Yes | ignored | ignored | Keeps local model resident (Ollama only) |
+| `max_concurrent` | Yes | Yes | Yes | Overridable via `external.<provider>.max_concurrent`; per-provider gate |
 
 !!! note "Provider-specific overrides"
     The settings above use shared defaults unless an override is set under

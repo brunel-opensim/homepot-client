@@ -224,14 +224,14 @@ open **Devices**.
 
 | Capability | Technician | Admin |
 | --- | --- | --- |
-| See all sites | ✓ | ✓ |
-| See all devices | ✓ | ✓ |
-| Generate / reveal a bootstrap key | ✓ | ✓ |
-| Enrol devices, provision, command devices | ✓ | ✓ |
-| Manage enrolment intents | ✓ | ✓ |
-| Assign roles (`PUT /auth/users/{email}/role`) | ✗ 403 | ✓ |
-| Tenant administration | ✗ 403 | ✓ |
-| AI action approval / execution | ✗ scoped to owned sites | ✓ |
+| See all sites | Yes | Yes |
+| See all devices | Yes | Yes |
+| Generate / reveal a bootstrap key | Yes | Yes |
+| Enrol devices, provision, command devices | Yes | Yes |
+| Manage enrolment intents | Yes | Yes |
+| Assign roles (`PUT /auth/users/{email}/role`) | No 403 | Yes |
+| Tenant administration | No 403 | Yes |
+| AI action approval / execution | No scoped to owned sites | Yes |
 
 The AI action routes are deliberately **not** opened up, even for the fleet
 visibility above: approving or executing an AI-proposed action stays restricted

@@ -146,7 +146,7 @@ Recorded evidence from a live run against `DEVICE-P9CQ-TTBX-NFPJ`:
 | 1 | ~~OS elevation not provisioned by the app~~ | **Closed** — User App provisions scoped `homepot-ctl` + `/etc/sudoers.d/homepot` NOPASSWD drop-in on Manage grant (one-time owner admin prompt) | — |
 | 2 | ~~Revoking Manage does not remove OS capability~~ | **Closed** — owner revoke triggers autonomous deprovision that removes the drop-in and allowlist (binary intentionally retained) | — |
 | 3 | No privileged-helper channel | Privileged commands run in-process via `sudo -n homepot-ctl` (free-form `exec`, power ops) | Introduce a small root helper (LaunchDaemon / `SMJobBless`) exposed over IPC, keeping the agent itself unprivileged (preferred, audit-friendly) |
-| 4 | Mobile platforms cannot honour `root_access` | Capability table already marks `root_access` ✗ on iOS/Android | Keep elevation desktop/server-only; expose the Manage tier only where the OS supports it |
+| 4 | Mobile platforms cannot honour `root_access` | Capability table already marks `root_access` No on iOS/Android | Keep elevation desktop/server-only; expose the Manage tier only where the OS supports it |
 
 ## Recommended elevation design
 

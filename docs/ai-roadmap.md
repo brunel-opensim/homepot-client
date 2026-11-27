@@ -99,13 +99,13 @@ app/
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| AI Infrastructure (FastAPI + Ollama + ChromaDB) | ✓ | `ai/api.py`, `ai/llm.py`, `ai/device_memory.py` |
-| Context Builder (12 data sources) | ✓ | `ai/context_builder.py` — parallel async DB queries |
-| Anomaly Detection (rule-based) | ✓ | `ai/anomaly_detection.py` — 6-factor scoring |
-| Validation Gates (A, B, C, D, E) | ✓ | `ai/gates/` — contract, integrity, context readiness, permissions/capabilities, lifecycle integrity |
-| Analysis Modes (3 personas) | ✓ | `ai/analysis_modes.py` — maintenance, predictive, executive |
-| AI Query Endpoint (`/api/v1/ai/query`) | ✓ | `AIEndpoint.py` with trust envelope |
-| Device Memory (ChromaDB RAG) | ✓ | `ai/device_memory.py` — semantic vector storage |
+| AI Infrastructure (FastAPI + Ollama + ChromaDB) | Yes | `ai/api.py`, `ai/llm.py`, `ai/device_memory.py` |
+| Context Builder (12 data sources) | Yes | `ai/context_builder.py` — parallel async DB queries |
+| Anomaly Detection (rule-based) | Yes | `ai/anomaly_detection.py` — 6-factor scoring |
+| Validation Gates (A, B, C, D, E) | Yes | `ai/gates/` — contract, integrity, context readiness, permissions/capabilities, lifecycle integrity |
+| Analysis Modes (3 personas) | Yes | `ai/analysis_modes.py` — maintenance, predictive, executive |
+| AI Query Endpoint (`/api/v1/ai/query`) | Yes | `AIEndpoint.py` with trust envelope |
+| Device Memory (ChromaDB RAG) | Yes | `ai/device_memory.py` — semantic vector storage |
 | Failure Predictor (partial) | Partial | `ai/failure_predictor.py` — factors 3 & 4 are stubs |
 | Predictive Job Scheduler | Partial | `ai/job_scheduler.py` — basic, not yet production-tuned |
 
