@@ -283,6 +283,8 @@ async def scan_and_persist(db: Any) -> List[Dict[str, Any]]:
                     breach_count=breach_count,
                     persistent_breach_count=persistent_breach_count,
                 )
+                from homepot.models import derive_provenance
+
                 session.add(
                     AnomalyScan(
                         device_id=device.device_id,
@@ -290,6 +292,11 @@ async def scan_and_persist(db: Any) -> List[Dict[str, Any]]:
                         level=level,
                         severity=_severity_for(level),
                         reasons=reasons,
+                        provenance=(
+                            _dp.value
+                            if (_dp := derive_provenance(device)) is not None
+                            else None
+                        ),
                     )
                 )
                 if level >= 1:

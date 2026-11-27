@@ -95,8 +95,12 @@ async def _extract_raw(
                 "device_id",
                 "cpu_percent",
                 "memory_percent",
+                "disk_percent",
                 "network_latency_ms",
+                "collection_interval_seconds",
                 "provenance",
+                "uptime_seconds",
+                "disk_io_bytes_s",
             ],
             rows=[
                 [
@@ -104,8 +108,14 @@ async def _extract_raw(
                     r.device_id,
                     r.cpu_percent,
                     r.memory_percent,
+                    r.disk_percent,
                     r.network_latency_ms,
+                    r.collection_interval_seconds,
                     r.provenance,
+                    (cast(Dict[str, Any], r.extra_metrics or {})).get("uptime_seconds"),
+                    (cast(Dict[str, Any], r.extra_metrics or {})).get(
+                        "disk_io_bytes_s"
+                    ),
                 ]
                 for r in metric_rows
             ],

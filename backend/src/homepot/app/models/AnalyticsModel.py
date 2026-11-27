@@ -348,6 +348,9 @@ class Alert(Base):
     ai_recommendation = Column(Text, nullable=True)
     ai_confidence = Column(Float, nullable=True)
 
+    # Evidence provenance
+    provenance = Column(String(20), nullable=True, index=True)
+
     __table_args__ = (
         Index("idx_alert_status_severity", "status", "severity"),
         Index("idx_alert_device", "device_id"),
@@ -372,6 +375,9 @@ class AnomalyScan(Base):
     level = Column(Integer, nullable=False, default=0)  # 0 normal .. 3 critical
     severity = Column(String(20), nullable=True)  # normal, warning, critical
     reasons = Column(JSON, nullable=True)
+
+    # Evidence provenance
+    provenance = Column(String(20), nullable=True, index=True)
 
     __table_args__ = (
         Index("idx_anomaly_scan_device_timestamp", "device_id", "timestamp"),

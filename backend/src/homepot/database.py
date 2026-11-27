@@ -1527,6 +1527,20 @@ class DatabaseService:
         if timestamp is not None and timestamp.tzinfo is not None:
             timestamp = timestamp.astimezone(datetime.timezone.utc).replace(tzinfo=None)
         async with self.get_session() as session:
+            # Derive provenance from the device record
+            provenance = None
+            if device_id:
+                from sqlalchemy import select as _select
+
+                from homepot.models import Device, derive_provenance
+
+                dev_result = await session.execute(
+                    _select(Device).where(Device.device_id == device_id)
+                )
+                dev = dev_result.scalars().first()
+                _derived = derive_provenance(dev) if dev is not None else None
+                provenance = _derived.value if _derived is not None else None
+
             alert = Alert(
                 device_id=device_id,
                 site_id=site_id,
@@ -1538,6 +1552,7 @@ class DatabaseService:
                 ai_recommendation=ai_recommendation,
                 ai_confidence=ai_confidence,
                 timestamp=timestamp or datetime.datetime.now(datetime.timezone.utc),
+                provenance=provenance,
             )
             session.add(alert)
             await session.commit()

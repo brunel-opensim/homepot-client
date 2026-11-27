@@ -75,6 +75,9 @@ class LifecycleService:
 
         self.db.add(device)
 
+        from homepot.models import derive_provenance
+
+        _derived = derive_provenance(device)
         history = DeviceStateHistory(
             device_id=device.id,
             previous_state=previous_state.value if previous_state else None,
@@ -82,6 +85,7 @@ class LifecycleService:
             changed_by=changed_by,
             reason=reason,
             extra_data={"timestamp": _utc_now().isoformat()},
+            provenance=_derived.value if _derived is not None else None,
         )
         self.db.add(history)
         self.db.commit()
