@@ -201,6 +201,11 @@ class AgentRepository:
         uptime_seconds: int | None = None,
         network_latency_ms: float | None = None,
         disk_io_bytes_s: float | None = None,
+        network_download_bytes_s: float | None = None,
+        network_upload_bytes_s: float | None = None,
+        active_connections: int | None = None,
+        wifi_signal_dbm: float | None = None,
+        wifi_link_rate_mbps: float | None = None,
         provenance: str | None = None,
         collection_interval_seconds: int | None = None,
     ) -> DeviceMetrics:
@@ -210,6 +215,16 @@ class AgentRepository:
             extra["uptime_seconds"] = uptime_seconds
         if disk_io_bytes_s is not None:
             extra["disk_io_bytes_s"] = disk_io_bytes_s
+        if network_download_bytes_s is not None:
+            extra["network_download_bytes_s"] = network_download_bytes_s
+        if network_upload_bytes_s is not None:
+            extra["network_upload_bytes_s"] = network_upload_bytes_s
+        if active_connections is not None:
+            extra["active_connections"] = active_connections
+        if wifi_signal_dbm is not None:
+            extra["wifi_signal_dbm"] = wifi_signal_dbm
+        if wifi_link_rate_mbps is not None:
+            extra["wifi_link_rate_mbps"] = wifi_link_rate_mbps
         metric = DeviceMetrics(
             device_id=device_pk,
             cpu_percent=cpu_usage,
@@ -244,6 +259,21 @@ class AgentRepository:
             disk_io = entry.get("disk_io_bytes_s")
             if disk_io is not None:
                 extra["disk_io_bytes_s"] = disk_io
+            net_down = entry.get("network_download_bytes_s")
+            if net_down is not None:
+                extra["network_download_bytes_s"] = net_down
+            net_up = entry.get("network_upload_bytes_s")
+            if net_up is not None:
+                extra["network_upload_bytes_s"] = net_up
+            connections = entry.get("active_connections")
+            if connections is not None:
+                extra["active_connections"] = connections
+            signal = entry.get("wifi_signal_dbm")
+            if signal is not None:
+                extra["wifi_signal_dbm"] = signal
+            link_rate = entry.get("wifi_link_rate_mbps")
+            if link_rate is not None:
+                extra["wifi_link_rate_mbps"] = link_rate
             metric = DeviceMetrics(
                 device_id=device_pk,
                 cpu_percent=entry["cpu_usage"],

@@ -48,6 +48,22 @@ try:
 except Exception:  # noqa: BLE001 - unreadable counters degrade to zero rate
     pass
 
+# Sliding history of (wall-clock, (bytes_recv, bytes_sent)) snapshots for
+# network throughput. The same window/cadence logic as disk I/O keeps the
+# reported rate stable regardless of how often this module is sampled.
+_net_io_baseline_lock = Lock()
+NetIoSample = Tuple[float, Tuple[float, float]]
+_net_io_samples: Deque[NetIoSample] = deque()
+
+try:
+    net_counters = psutil.net_io_counters()
+    if net_counters is not None:
+        _net_io_samples.append(
+            (time.time(), (net_counters.bytes_recv, net_counters.bytes_sent))
+        )
+except Exception:  # noqa: BLE001 - unreadable counters degrade to zero rate
+    pass
+
 
 def utc_now_iso() -> str:
     """Return current UTC time as an ISO-8601 string."""
@@ -118,21 +134,74 @@ def _disk_io_bytes_per_second() -> float:
         return (read_bytes + write_bytes) / dt
 
 
+def _network_io_bytes_per_second() -> Tuple[float, float]:
+    """Return (download, upload) throughput in bytes/s over a sliding window.
+
+    Download maps to ``bytes_recv`` and upload to ``bytes_sent`` from
+    ``psutil.net_io_counters()``.  The same sliding-window logic as the disk
+    I/O helper keeps the rate stable across callers that sample at different
+    cadences (telemetry loop, status report, live logs).
+
+    Returns ``(0.0, 0.0)`` when the OS exposes no network counters, too little
+    time has elapsed since the anchor, or the counters are unavailable.
+    """
+    global _net_io_samples
+    with _net_io_baseline_lock:
+        now_ts = time.time()
+        now_io = psutil.net_io_counters()
+        if now_io is None:
+            return (0.0, 0.0)
+        now_sample: NetIoSample = (
+            now_ts,
+            (now_io.bytes_recv, now_io.bytes_sent),
+        )
+        _net_io_samples.append(now_sample)
+
+        # Drop front samples until the front is at least a window behind now,
+        # but never empty the history: the retained front acts as the anchor.
+        while (
+            len(_net_io_samples) >= 2
+            and now_ts - _net_io_samples[1][0] >= _DISK_IO_WINDOW_SECONDS
+        ):
+            _net_io_samples.popleft()
+        if len(_net_io_samples) > _DISK_IO_MAX_SAMPLES:
+            anchor = _net_io_samples[0]
+            tail_count = _DISK_IO_MAX_SAMPLES - 1
+            samples_after_anchor = iter(_net_io_samples)
+            next(samples_after_anchor, None)
+            tail = deque(samples_after_anchor, maxlen=tail_count)
+            _net_io_samples = deque((anchor,))
+            _net_io_samples.extend(tail)
+
+        anchor_ts, anchor_io = _net_io_samples[0]
+        dt = now_ts - anchor_ts
+        if dt < _DISK_IO_MIN_INTERVAL_SECONDS:
+            return (0.0, 0.0)
+        download = max(0.0, now_io.bytes_recv - anchor_io[0]) / dt
+        upload = max(0.0, now_io.bytes_sent - anchor_io[1]) / dt
+        return (download, upload)
+
+
 def collect_system_telemetry() -> Dict[str, float]:
-    """Collect basic CPU, memory, disk, and uptime metrics from the host.
+    """Collect basic CPU, memory, disk, network, and uptime metrics from the host.
 
     ``cpu_usage`` is the average utilization since the previous call in the
     same process (honest per-read sample over the collection interval) rather
     than a short blocking snapshot; the baseline is seeded at import.
     ``disk_io_bytes_s`` is the combined read/write throughput (bytes per
-    second) over a sliding window matching the telemetry cadence, so it
-    stays meaningful even when other loops sample metrics in between.
+    second) and ``network_download_bytes_s`` / ``network_upload_bytes_s`` the
+    network receive/transmit throughput, each over a sliding window matching
+    the telemetry cadence, so they stay meaningful even when other loops
+    sample metrics in between.
     """
+    download, upload = _network_io_bytes_per_second()
     return {
         "cpu_usage": float(round(max(0.0, psutil.cpu_percent(interval=None)), 1)),
         "memory_usage": float(psutil.virtual_memory().percent),
         "disk_usage": float(psutil.disk_usage("/").percent),
         "disk_io_bytes_s": float(round(_disk_io_bytes_per_second(), 1)),
+        "network_download_bytes_s": float(round(download, 1)),
+        "network_upload_bytes_s": float(round(upload, 1)),
         "uptime_seconds": collect_uptime_seconds(),
     }
 

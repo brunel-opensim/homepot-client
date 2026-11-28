@@ -336,6 +336,11 @@ class AgentService:
                     disk_io_bytes_s=payload.disk_io_bytes_s,
                     uptime_seconds=payload.uptime_seconds,
                     network_latency_ms=payload.network_latency_ms,
+                    network_download_bytes_s=payload.network_download_bytes_s,
+                    network_upload_bytes_s=payload.network_upload_bytes_s,
+                    active_connections=payload.active_connections,
+                    wifi_signal_dbm=payload.wifi_signal_dbm,
+                    wifi_link_rate_mbps=payload.wifi_link_rate_mbps,
                     provenance=provenance.value if provenance else None,
                     collection_interval_seconds=payload.collection_interval_seconds,
                 )
@@ -365,6 +370,11 @@ class AgentService:
                     "disk_io_bytes_s": item.disk_io_bytes_s,
                     "uptime_seconds": item.uptime_seconds,
                     "network_latency_ms": item.network_latency_ms,
+                    "network_download_bytes_s": item.network_download_bytes_s,
+                    "network_upload_bytes_s": item.network_upload_bytes_s,
+                    "active_connections": item.active_connections,
+                    "wifi_signal_dbm": item.wifi_signal_dbm,
+                    "wifi_link_rate_mbps": item.wifi_link_rate_mbps,
                     "timestamp": item.timestamp,
                 }
                 for item in entries

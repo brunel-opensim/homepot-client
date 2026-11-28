@@ -38,6 +38,8 @@ from homepot.agent.utils.command_poller import (
     build_status_report,
     build_status_update_payload,
     fetch_device_permissions,
+    get_active_connections,
+    get_wifi_signal_info,
     parse_pending_commands,
     process_command,
 )
@@ -518,6 +520,17 @@ async def ack_command_backend(
         return False
 
 
+def _fmt_bytes_per_second(bytes_s: Optional[float]) -> Optional[str]:
+    """Format a byte-per-second throughput as a short human-readable string."""
+    if bytes_s is None:
+        return None
+    if bytes_s >= 1e6:
+        return f"{bytes_s / 1e6:.1f}MB/s"
+    if bytes_s >= 1e3:
+        return f"{bytes_s / 1e3:.0f}KB/s"
+    return f"{bytes_s:.0f}B/s"
+
+
 async def _report_status_to_live_logs(
     client: httpx.AsyncClient, config: Dict[str, Any], report: Dict[str, Any]
 ) -> None:
@@ -536,6 +549,22 @@ async def _report_status_to_live_logs(
             message += f" | net wifi ({ssid})"
         else:
             message += f" | net {conn_type}"
+
+    # Network throughput (download / upload)
+    download = _fmt_bytes_per_second(report.get("network_download_bytes_s"))
+    upload = _fmt_bytes_per_second(report.get("network_upload_bytes_s"))
+    if download or upload:
+        message += f" | down {download or '0'} up {upload or '0'}"
+
+    # Wi-Fi signal strength
+    signal_dbm = report.get("wifi_signal_dbm")
+    if signal_dbm is not None:
+        message += f" | wifi {signal_dbm}dBm"
+
+    # Active connections
+    active_connections = report.get("active_connections")
+    if active_connections is not None:
+        message += f" | {active_connections} conns"
 
     # Temperature info
     cpu_temp = report.get("cpu_temp_c")
@@ -1281,6 +1310,11 @@ async def telemetry_loop(
                 collection_interval_seconds=interval,
             )
             payload["site_id"] = config["site_id"]
+            # Wi-Fi signal + active connections (best-effort; None when unavailable)
+            wifi_signal = get_wifi_signal_info()
+            payload["wifi_signal_dbm"] = wifi_signal.get("signal_dbm")
+            payload["wifi_link_rate_mbps"] = wifi_signal.get("link_rate_mbps")
+            payload["active_connections"] = get_active_connections()
             pos = collect_pos_signals(config.get("pos_signals_source"))
             if pos is not None:
                 payload["pos"] = pos
@@ -1458,6 +1492,10 @@ async def live_logs_loop(
                     "battery_charging": report.get("battery_charging"),
                     "network_connection_type": report.get("network_connection_type"),
                     "network_ssid": report.get("network_ssid"),
+                    "network_download_bytes_s": report.get("network_download_bytes_s"),
+                    "network_upload_bytes_s": report.get("network_upload_bytes_s"),
+                    "wifi_signal_dbm": report.get("wifi_signal_dbm"),
+                    "active_connections": report.get("active_connections"),
                     "cpu_temp_c": report.get("cpu_temp_c"),
                     "system_temp_c": report.get("system_temp_c"),
                     "gpu_temp_c": report.get("gpu_temp_c"),
