@@ -46,12 +46,12 @@ def print_header(text):
 
 def print_success(text):
     """Print success message."""
-    print(f"✓ {text}")
+    print(f"PASS: {text}")
 
 
 def print_error(text):
     """Print error message."""
-    print(f"✗ {text}")
+    print(f"FAIL: {text}")
 
 
 def authenticate(email="test@example.com", password="testpass123"):  # noqa: S107
