@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import TabBar from '../components/TabBar'
+import Icon from '../components/Icon'
 import { useApp } from '../context/AppContext'
 import { credentialStorage } from '../services/credentialStorage'
 import { fetchDevice, unpairDevice, ApiError } from '../services/api'
@@ -314,7 +315,7 @@ export default function DeviceInfo() {
             <p className="text-slate-500 text-xs">Device Info & Settings</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center">
-            <span className="text-base">⚙</span>
+            <span className="text-base"><Icon name="settings" /></span>
           </div>
         </div>
 
