@@ -14,9 +14,8 @@ _HOMEPOT_PATH = os.environ.get(
 )
 if _HOMEPOT_PATH not in sys.path:
     sys.path.insert(0, _HOMEPOT_PATH)
-sys.path.insert(0, os.path.join(_HOMEPOT_PATH, "uq", "common"))
 
-from runner import run_anomaly  # noqa: E402
+from uq.common.runner import run_anomaly  # noqa: E402
 
 FLOAT_KEYS = [
     "cpu_percent",

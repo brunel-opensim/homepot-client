@@ -22,7 +22,7 @@ if _HOMEPOT_PATH not in sys.path:
 from ai.anomaly_detection import AnomalyDetector  # noqa: E402
 
 
-def run_anomaly(float_keys, int_keys):
+def run_anomaly(float_keys: list[str], int_keys: list[str]) -> None:
     """Read ``input.json``, run the anomaly detector, write ``output.json``."""
     with open("input.json") as fh:
         metrics = json.load(fh)
