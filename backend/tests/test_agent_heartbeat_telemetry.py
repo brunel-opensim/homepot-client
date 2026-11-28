@@ -112,11 +112,13 @@ class TestCollectSystemTelemetry:
     """Tests for ``collect_system_telemetry``."""
 
     def test_returns_dict_with_expected_keys(self):
-        """Returned dict contains cpu, memory, and disk keys."""
+        """Returned dict contains cpu, memory, disk, and network keys."""
         metrics = collect_system_telemetry()
         assert "cpu_usage" in metrics
         assert "memory_usage" in metrics
         assert "disk_usage" in metrics
+        assert "network_download_bytes_s" in metrics
+        assert "network_upload_bytes_s" in metrics
 
     def test_values_are_floats(self):
         """All metric values are floats."""
@@ -171,6 +173,37 @@ class TestCollectSystemTelemetry:
 
         metrics = collect_system_telemetry()
         assert metrics["disk_io_bytes_s"] == pytest.approx(1_200_000.0, rel=1e-3)
+
+    def test_network_io_is_throughput_since_last_read(self, monkeypatch):
+        """Network download/upload throughput reports bytes per second."""
+        import homepot.agent.utils.telemetry as telemetry
+
+        baseline_ts = time.time() - 10.0
+        telemetry._net_io_samples = deque([(baseline_ts, (0, 0))])
+
+        class FakeNetIO:
+            def __init__(self, bytes_recv, bytes_sent):
+                self.bytes_recv = bytes_recv
+                self.bytes_sent = bytes_sent
+
+        current = FakeNetIO(20_000_000, 5_000_000)
+        monkeypatch.setattr(telemetry.psutil, "net_io_counters", lambda: current)
+
+        metrics = collect_system_telemetry()
+        assert metrics["network_download_bytes_s"] == pytest.approx(
+            2_000_000.0, rel=1e-3
+        )
+        assert metrics["network_upload_bytes_s"] == pytest.approx(500_000.0, rel=1e-3)
+
+    def test_network_io_zero_when_no_baseline(self, monkeypatch):
+        """Network throughput falls back to 0.0 when counters are unavailable."""
+        import homepot.agent.utils.telemetry as telemetry
+
+        monkeypatch.setattr(telemetry.psutil, "net_io_counters", lambda: None)
+
+        metrics = collect_system_telemetry()
+        assert metrics["network_download_bytes_s"] == 0.0
+        assert metrics["network_upload_bytes_s"] == 0.0
 
     def test_disk_io_zero_when_sampled_too_quickly(self, monkeypatch):
         """disk_io_bytes_s remains 0.0 before the minimum sample interval elapses."""

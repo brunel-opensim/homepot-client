@@ -136,6 +136,30 @@ class AgentTelemetryRequest(BaseModel):
     network_latency_ms: Optional[float] = Field(
         default=None, ge=0, description="Network latency in milliseconds"
     )
+    network_download_bytes_s: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Network download throughput in bytes per second",
+    )
+    network_upload_bytes_s: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Network upload throughput in bytes per second",
+    )
+    active_connections: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Active inet connection count",
+    )
+    wifi_signal_dbm: Optional[float] = Field(
+        default=None,
+        description="Wi-Fi received signal strength in dBm (negative)",
+    )
+    wifi_link_rate_mbps: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Wi-Fi negotiated link rate in Mbps",
+    )
     uptime_seconds: Optional[int] = Field(
         default=None, ge=0, description="System uptime in seconds"
     )

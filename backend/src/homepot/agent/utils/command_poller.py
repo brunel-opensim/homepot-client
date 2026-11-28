@@ -4190,6 +4190,162 @@ def get_network_connection_info() -> Dict[str, Any]:
     return info
 
 
+def _signal_percent_to_dbm(percent: float) -> float:
+    """Approximate a Windows Wi-Fi signal percentage to an RSSI in dBm.
+
+    Windows ``netsh wlan show interfaces`` reports signal strength as a
+    link-quality percentage rather than an RSSI.  The common approximation
+    ``dBm ≈ (percent / 2) - 100`` maps 100% → -50 dBm and 20% → -90 dBm,
+    which is close enough for status display and sensitivity analysis.
+    """
+    return round((percent / 2.0) - 100.0, 1)
+
+
+def get_wifi_signal_info() -> Dict[str, Any]:
+    """Return Wi-Fi signal strength and negotiated link rate (best-effort).
+
+    Returns a dict with:
+      - signal_dbm: received signal strength in dBm (approximate on Windows,
+        where the OS exposes a percentage rather than an RSSI)
+      - link_rate_mbps: negotiated link rate in Mbps
+    Both are None when the information cannot be determined.
+    """
+    info: Dict[str, Any] = {
+        "signal_dbm": None,
+        "link_rate_mbps": None,
+    }
+
+    if _is_windows_platform():
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["netsh", "wlan", "show", "interfaces"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in (out.stdout or "").splitlines():
+                stripped = line.strip()
+                low = stripped.lower()
+                if low.startswith("signal"):
+                    value = stripped.split(":", 1)[-1].strip().rstrip("%")
+                    try:
+                        info["signal_dbm"] = _signal_percent_to_dbm(float(value))
+                    except ValueError:
+                        pass
+                elif low.startswith("receive rate"):
+                    value = stripped.split(":", 1)[-1].strip().split()[0]
+                    try:
+                        info["link_rate_mbps"] = round(float(value), 1)
+                    except ValueError:
+                        pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "darwin":
+        airport = (
+            "/System/Library/PrivateFrameworks/Apple80211.framework/"
+            "Versions/Current/Resources/airport"
+        )
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                [airport, "-I"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in (out.stdout or "").splitlines():
+                if ":" not in line:
+                    continue
+                key, _, value = line.partition(":")
+                key = key.strip().lower()
+                value = value.strip()
+                if key == "agrctlrssi":
+                    try:
+                        info["signal_dbm"] = round(float(value), 1)
+                    except ValueError:
+                        pass
+                elif key == "lasttxrate":
+                    try:
+                        info["link_rate_mbps"] = round(float(value), 1)
+                    except ValueError:
+                        pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    else:
+        # Linux: discover the first wireless interface, then read its link.
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["iw", "dev"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            iface = None
+            for line in (out.stdout or "").splitlines():
+                if line.strip().lower().startswith("interface"):
+                    iface = line.split()[-1].strip()
+                    break
+            if iface:
+                link = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                    ["iw", "dev", iface, "link"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                for line in (link.stdout or "").splitlines():
+                    stripped = line.strip()
+                    low = stripped.lower()
+                    if low.startswith("signal"):
+                        value = stripped.split(":", 1)[-1].strip().split()[0]
+                        try:
+                            info["signal_dbm"] = round(float(value), 1)
+                        except ValueError:
+                            pass
+                    elif low.startswith("tx bitrate"):
+                        value = stripped.split(":", 1)[-1].strip().split()[0]
+                        try:
+                            info["link_rate_mbps"] = round(float(value), 1)
+                        except ValueError:
+                            pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    return info
+
+
+def get_active_connections() -> Optional[int]:
+    """Count active inet connections (best-effort, cross-platform).
+
+    ``psutil.net_connections(kind="inet")`` needs root on macOS to map
+    sockets to owning PIDs, so on failure we count the current user's sockets
+    via ``lsof``.  Returns None when the count cannot be determined.
+    """
+    try:
+        return len(psutil.net_connections(kind="inet"))
+    except (psutil.AccessDenied, OSError):
+        lsof = shutil.which("lsof")
+        if lsof is None:
+            return None
+        try:
+            out = subprocess.run(  # noqa: S603 - explicit argv list, no shell
+                [lsof, "-nP", "-i"],
+                capture_output=True,
+                text=True,
+                timeout=MAX_COMMAND_TIMEOUT,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if out.returncode not in (0, 1):
+            return None
+        # lsof prints a header line followed by one line per socket.
+        lines = [line for line in out.stdout.splitlines() if line.strip()]
+        return max(0, len(lines) - 1)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _host_firmware_version() -> str:
     """Return the host firmware version (BIOS on Windows, OS build elsewhere).
 
@@ -4227,6 +4383,12 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
     # Network connection info (best-effort)
     net_info = get_network_connection_info()
 
+    # Wi-Fi signal strength + link rate (best-effort)
+    wifi_signal = get_wifi_signal_info()
+
+    # Active inet connection count (best-effort)
+    active_connections = get_active_connections()
+
     # Temperature info (best-effort)
     temp_info = get_device_temperature()
 
@@ -4247,11 +4409,16 @@ def build_status_report(config: Dict[str, Any]) -> Dict[str, Any]:
         "cpu_usage": metrics["cpu_usage"],
         "memory_usage": metrics["memory_usage"],
         "disk_usage": metrics["disk_usage"],
+        "network_download_bytes_s": metrics.get("network_download_bytes_s"),
+        "network_upload_bytes_s": metrics.get("network_upload_bytes_s"),
+        "active_connections": active_connections,
         "battery_percent": battery_percent,
         "battery_charging": battery_charging,
         "network_connection_type": net_info.get("connection_type"),
         "network_ssid": net_info.get("ssid"),
         "network_interface": net_info.get("interface"),
+        "wifi_signal_dbm": wifi_signal.get("signal_dbm"),
+        "wifi_link_rate_mbps": wifi_signal.get("link_rate_mbps"),
         "cpu_temp_c": temp_info.get("cpu_temp_c"),
         "gpu_temp_c": temp_info.get("gpu_temp_c"),
         "system_temp_c": temp_info.get("system_temp_c"),

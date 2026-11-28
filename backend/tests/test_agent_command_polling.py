@@ -16,8 +16,11 @@ from homepot.agent.utils.command_poller import (
     _parse_firmware_checksum,
     _parse_lsof_connection,
     _run_bootstrap_winget,
+    _signal_percent_to_dbm,
     build_status_report,
     build_status_update_payload,
+    get_active_connections,
+    get_wifi_signal_info,
     parse_pending_commands,
     process_command,
     required_permissions_for_command,
@@ -2037,6 +2040,32 @@ class TestStatusRequest:
         # firmware_version comes from the host when the local agent config does
         # not carry one (previously it was always an empty string).
         assert report["firmware_version"]
+        # Network data-layer fields are always present (None when unavailable).
+        assert "network_download_bytes_s" in report
+        assert "network_upload_bytes_s" in report
+        assert "active_connections" in report
+        assert "wifi_signal_dbm" in report
+        assert "wifi_link_rate_mbps" in report
+
+    def test_signal_percent_to_dbm_approximation(self):
+        """Windows signal percentages map to the documented dBm approximation."""
+        assert _signal_percent_to_dbm(100.0) == -50.0
+        assert _signal_percent_to_dbm(20.0) == -90.0
+        assert _signal_percent_to_dbm(0.0) == -100.0
+
+    def test_get_wifi_signal_info_returns_shape(self):
+        """The Wi-Fi signal helper returns a dict with the expected keys."""
+        info = get_wifi_signal_info()
+        assert set(info.keys()) == {"signal_dbm", "link_rate_mbps"}
+        assert info["signal_dbm"] is None or isinstance(info["signal_dbm"], float)
+        assert info["link_rate_mbps"] is None or isinstance(
+            info["link_rate_mbps"], float
+        )
+
+    def test_get_active_connections_returns_count_or_none(self):
+        """The active-connection helper returns an int count or None."""
+        count = get_active_connections()
+        assert count is None or isinstance(count, int)
 
 
 class TestPushWakeupListener:
