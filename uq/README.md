@@ -162,7 +162,7 @@ never have appeared in production data yet.
 | 1 | [Anomaly Detector Sensitivity](../docs/uq/study1-anomaly.md) | `ai/anomaly_detection.py` | PCE order 2, Sobol | 2 187 | Done |
 | 2 | [Simulator Scenario Boundary Validation](../docs/uq/study2-simulator.md) | `DeviceSimulatorEndpoint._generate_metrics_for_scenario()` | MCSampler / Saltelli, Sobol | 16 200 | Done |
 | 3 | [Push Notification Delivery Reliability](../docs/uq/study3-push.md) | Push notification delivery model | MCSampler / Saltelli, Sobol | 35 000 + 21 000 | Done |
-| 4 | Extended Anomaly Detector Sensitivity | `ai/anomaly_detection.py` (extended) | MCSampler / Saltelli, Sobol | 19 800 | Done |
+| 4 | [Extended Anomaly Detector Sensitivity](../docs/uq/study4-extended.md) | `ai/anomaly_detection.py` (extended) | MCSampler / Saltelli, Sobol | 19 800 | Done |
 
 ---
 
@@ -276,11 +276,10 @@ uq/
     └── figs/                           ← output plots (gitignored)
 ```
 
-Detailed methodology, results, and recommendations for Studies 1-3 live in
-`docs/uq/study1-anomaly.md`, `docs/uq/study2-simulator.md`, and
-`docs/uq/study3-push.md` (rendered on the published docs site).  Study 4
-does not yet have a detailed write-up; its methodology is documented in the
-script docstring and in `ai/anomaly_detection.py`.
+Detailed methodology, results, and recommendations for all studies live in
+`docs/uq/study1-anomaly.md`, `docs/uq/study2-simulator.md`,
+`docs/uq/study3-push.md`, and `docs/uq/study4-extended.md` (rendered on the
+published docs site).
 
 All `figs/` and `campaign_*/` directories are gitignored — they are regenerated on
 each run. Plots are the primary runtime output of each study.
