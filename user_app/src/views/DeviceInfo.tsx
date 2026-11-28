@@ -379,7 +379,7 @@ export default function DeviceInfo() {
           {updateState.kind === 'disabled' || updateState.kind === 'error' ? (
             <div className={`flex flex-col gap-2 rounded-xl p-3 ${updateState.kind === 'error' ? 'bg-red-950 border border-red-800' : 'bg-slate-800 border border-slate-600'}`}>
               <p className={`text-xs font-medium text-center ${updateState.kind === 'error' ? 'text-red-300' : 'text-slate-300'}`}>
-                {updateState.kind === 'error' ? '✗  Update check failed' : 'Automatic updates are not enabled for this build'}
+                {updateState.kind === 'error' ? 'Update check failed' : 'Automatic updates are not enabled for this build'}
               </p>
               {(updateState.kind === 'error' ? updateState.message : updateState.reason) && (
                 <p className={`text-xs text-center break-words ${updateState.kind === 'error' ? 'text-red-400' : 'text-slate-400'}`}>
@@ -522,7 +522,7 @@ export default function DeviceInfo() {
           ) : unpairStatus === 'disconnected' ? (
             <div className="flex flex-col gap-2 bg-emerald-950 border border-emerald-800 rounded-xl p-4">
               <p className="text-emerald-300 text-xs font-medium text-center">
-                ✓  Disconnected
+                Disconnected
               </p>
               <p className="text-emerald-400 text-xs text-center">
                 The Dashboard has confirmed the device is unpaired. Telemetry has
@@ -532,7 +532,7 @@ export default function DeviceInfo() {
           ) : unpairStatus === 'error' ? (
             <div className="flex flex-col gap-2 bg-red-950 border border-red-800 rounded-xl p-4">
               <p className="text-red-300 text-xs font-medium text-center">
-                ✗  Unpair failed
+                Unpair failed
               </p>
               <p className="text-red-400 text-xs text-center">{unpairError}</p>
               <div className="flex gap-2">

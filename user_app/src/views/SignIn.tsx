@@ -29,7 +29,7 @@ export default function SignIn() {
                   : i === 2 ? 'border-emerald-500 text-emerald-400 bg-slate-900'
                   : 'border-slate-600 text-slate-500 bg-slate-900'
                 }`}>
-                  {i < 2 ? '✓' : i + 1}
+                  {i + 1}
                 </div>
                 <span className={`text-xs ${i === 2 ? 'text-emerald-400' : 'text-slate-500'}`}>{label}</span>
               </div>

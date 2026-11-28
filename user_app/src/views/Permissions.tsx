@@ -444,11 +444,6 @@ export default function Permissions() {
                 : "bg-slate-700 border border-slate-600"
             }`}
           >
-            <span
-              className={`text-sm ${savingGroup ? "text-amber-400" : "text-slate-400"}`}
-            >
-              {savingGroup ? "⏳" : "✓"}
-            </span>
             <p className="text-xs text-slate-300">
               {savingGroup
                 ? `Syncing ${savingGroup === "monitor" ? "monitoring" : "management"}…`

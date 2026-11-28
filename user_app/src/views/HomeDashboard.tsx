@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import TabBar from '../components/TabBar'
+import Icon, { type IconName } from '../components/Icon'
 import GaugeRing from '../components/GaugeRing'
 import MetricsHistoryChart from '../components/MetricsHistoryChart'
 import { credentialStorage } from '../services/credentialStorage'
@@ -70,7 +71,7 @@ function ConnectionChecklist({
                   : 'text-amber-400/60'
               }
             >
-              {step.done ? '✓' : '⋯'}
+              {step.done ? 'Done' : 'Pending'}
             </span>
             <span
               className={
@@ -94,13 +95,13 @@ function ConnectionChecklist({
 }
 
 // Pick a device-representing icon for the header, based on the device type.
-function deviceEmoji(deviceType: string | null): string {
+function deviceIcon(deviceType: string | null): IconName {
   const t = (deviceType || '').toLowerCase()
-  if (t.includes('tablet')) return '📱'
-  if (t.includes('scanner') || t.includes('mobile')) return '📟'
-  if (t.includes('kiosk')) return '🖥️'
-  if (t.includes('virtual')) return '💻'
-  return '🖥️' // pos_terminal and default
+  if (t.includes('tablet')) return 'tablet'
+  if (t.includes('scanner') || t.includes('mobile')) return 'smartphone'
+  if (t.includes('kiosk')) return 'monitor'
+  if (t.includes('virtual')) return 'laptop'
+  return 'monitor' // desktop, pos_terminal, and default
 }
 
 export default function HomeDashboard() {
@@ -299,7 +300,6 @@ export default function HomeDashboard() {
         card: 'bg-emerald-950 border border-emerald-800',
         circle: 'border-emerald-400 bg-emerald-900',
         text: 'text-emerald-400',
-        glyph: '✓',
         label: 'SECURE — ONLINE',
         dot: 'bg-emerald-400 animate-pulse',
       }
@@ -308,7 +308,6 @@ export default function HomeDashboard() {
           card: 'bg-amber-950 border border-amber-800',
           circle: 'border-amber-400 bg-amber-900',
           text: 'text-amber-400',
-          glyph: '⋯',
           label: 'CONNECTING…',
           dot: 'bg-amber-400 animate-pulse',
         }
@@ -316,7 +315,6 @@ export default function HomeDashboard() {
           card: 'bg-red-950 border border-red-800',
           circle: 'border-red-400 bg-red-900',
           text: 'text-red-400',
-          glyph: '✕',
           label: 'OFFLINE',
           dot: 'bg-red-500',
         }
@@ -348,7 +346,7 @@ export default function HomeDashboard() {
           <div className="flex items-center gap-2">
             <span className="text-slate-300 text-sm font-medium">{deviceName}</span>
             <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-base">
-              {deviceEmoji(deviceType)}
+              <Icon name={deviceIcon(deviceType)} />
             </div>
           </div>
         </div>
@@ -359,9 +357,7 @@ export default function HomeDashboard() {
         <div className="px-5 pt-4">
           <div className={`w-full rounded-xl p-4 flex items-center gap-3 ${statusStyles.card}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 flex-shrink-0 ${statusStyles.circle}`}>
-              <span className={`text-lg font-bold flex items-center ${statusStyles.text}`}>
-                {isConnecting ? <RadarPing /> : statusStyles.glyph}
-              </span>
+              {isConnecting && <RadarPing />}
             </div>
             <div>
               <p className={`font-bold text-sm ${statusStyles.text}`}>
