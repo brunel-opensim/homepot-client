@@ -218,7 +218,7 @@ for scenario_name in SCENARIO_ORDER:
     sampler = uq.sampling.MCSampler(
         vary=vary,
         n_mc_samples=N_MC_PER_SCENARIO,
-        rule="latin_hypercube",
+        rule="sobol",
         seed=42,
     )
     campaign.set_sampler(sampler)

@@ -1,7 +1,7 @@
 """Thin model wrapper for EasyVVUQ — Study 2 copy.
 
 NOTE: This file is intentionally a local copy of the Study 1 runner
-(``uq/study1_simulator/anomaly_runner.py``) to allow the studies to be run
+(``uq/study1_anomaly/anomaly_runner.py``) to allow the studies to be run
 independently. Any change to the runner logic must be applied in BOTH files
 to keep Study 1 and Study 2 behavior consistent.
 EasyVVUQ runs this script once per sample, each time in an isolated working

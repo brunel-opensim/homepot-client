@@ -98,6 +98,15 @@ existing homepot venv. No separate venv is needed.
 > **Why editable (`-e`)?**  Changes to the EasyVVUQ source are immediately reflected
 > without reinstalling — useful when developing or patching the library.
 
+### 2b. Install the remaining UQ dependencies
+
+EasyVVUQ does not pull in every package the studies need. Install the rest from the
+UQ requirements file:
+
+```bash
+.venv/bin/pip install -r uq/requirements.txt
+```
+
 ### 3. Run a study
 
 Each study is self-contained. From the `homepot-client` root:
@@ -134,26 +143,26 @@ study (gitignored, created at runtime).
 uq/
 ├── README.md                           ← this file — overview, setup, study index
 ├── study1_anomaly/                     ← Study 1: anomaly detector sensitivity (PCE)
-│   ├── STUDY.md                        ← full background, methodology, results,
-│   │                                      recommendations
 │   ├── run_anomaly_uq.py               ← campaign script
 │   ├── anomaly_runner.py               ← model wrapper
 │   ├── anomaly_runner.template         ← EasyVVUQ GenericEncoder template
 │   ├── figs/                           ← output plots (gitignored)
 │   └── campaign_anomaly_uq/            ← EasyVVUQ working dir (gitignored)
 ├── study2_simulator/                   ← Study 2: simulator scenario validation (MCSampler)
-│   ├── STUDY.md                        ← full background, methodology, results
 │   ├── run_simulator_uq.py             ← campaign script
 │   ├── anomaly_runner.py               ← model wrapper (local copy, independent of Study 1)
 │   ├── anomaly_runner.template         ← EasyVVUQ GenericEncoder template
 │   └── figs/                           ← output plots (gitignored)
 └── study3_push/                        ← Study 3: push notification reliability (MCSampler)
-    ├── STUDY.md                        ← full background, methodology, results
     ├── run_push_uq.py                  ← campaign script
     ├── push_runner.py                  ← deterministic expected-value runner
     ├── push_runner.template            ← EasyVVUQ GenericEncoder template
     └── figs/                           ← output plots (gitignored)
 ```
+
+Detailed methodology, results, and recommendations for each study live in
+`docs/uq/study1-anomaly.md`, `docs/uq/study2-simulator.md`, and
+`docs/uq/study3-push.md` (rendered on the published docs site).
 
 All `figs/` and `campaign_*/` directories are gitignored — they are regenerated on
 each run. Plots are the primary runtime output of each study.

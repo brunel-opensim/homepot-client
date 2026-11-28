@@ -1,0 +1,16 @@
+# UQ study dependencies (optional — only needed to run the studies in uq/).
+#
+# EasyVVUQ itself is not on PyPI: clone it and install it in editable mode:
+#   git clone https://github.com/UCL-CCS/EasyVVUQ.git /path/to/EasyVVUQ
+#   .venv/bin/pip install -e /path/to/EasyVVUQ
+# Then install the remaining dependencies:
+#   .venv/bin/pip install -r uq/requirements.txt
+#
+# chaospy provides the distributions (Uniform, Beta, DiscreteUniform, …) used
+# by the studies; scipy is needed by study 3 (push) for binom.cdf and by
+# chaospy on some code paths; matplotlib is optional (studies skip plots if
+# it is missing).
+chaospy>=4.3.0
+scipy>=1.11.0
+matplotlib>=3.7.0
+numpy>=1.24.0
