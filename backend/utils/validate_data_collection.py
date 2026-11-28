@@ -137,7 +137,7 @@ class DataCollectionValidator:
             self._add_check_result(
                 check_name, "passed", "Database connection successful"
             )
-            print(f"{Colors.GREEN}✓{Colors.END} {check_name}: Connected")
+            print(f"{Colors.GREEN}PASS:{Colors.END} {check_name}: Connected")
         except Exception as e:
             self._add_check_result(check_name, "failed", f"Cannot connect: {str(e)}")
             self.results["issues"].append(
@@ -174,7 +174,7 @@ class DataCollectionValidator:
                         check_name, "passed", f"{active_devices} active devices found"
                     )
                     print(
-                        f"{Colors.GREEN}✓{Colors.END} {check_name}: {active_devices} devices active"
+                        f"{Colors.GREEN}PASS:{Colors.END} {check_name}: {active_devices} devices active"
                     )
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
@@ -267,7 +267,7 @@ class DataCollectionValidator:
                         check_name, "passed", f"{count} schedules configured"
                     )
                     print(
-                        f"{Colors.GREEN}✓{Colors.END} {check_name}: {count} schedules configured"
+                        f"{Colors.GREEN}PASS:{Colors.END} {check_name}: {count} schedules configured"
                     )
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
@@ -384,7 +384,7 @@ class DataCollectionValidator:
                         },
                     )
                     print(
-                        f"{Colors.GREEN}✓{Colors.END} {name}: {total_count} records ({collection_days:.1f} days)"
+                        f"{Colors.GREEN}PASS:{Colors.END} {name}: {total_count} records ({collection_days:.1f} days)"
                     )
 
         except Exception as e:
@@ -448,7 +448,9 @@ class DataCollectionValidator:
                 self._add_check_result(
                     check_name, "passed", "No quality issues detected"
                 )
-                print(f"  {Colors.GREEN}✓{Colors.END} All data within expected ranges")
+                print(
+                    f"  {Colors.GREEN}PASS:{Colors.END} All data within expected ranges"
+                )
 
         except Exception as e:
             self._add_check_result(check_name, "failed", str(e))
@@ -510,7 +512,7 @@ class DataCollectionValidator:
                         check_name, "passed", "No significant gaps detected"
                     )
                     print(
-                        f"  {Colors.GREEN}✓{Colors.END} "
+                        f"  {Colors.GREEN}PASS:{Colors.END} "
                         "Continuous data collection confirmed"
                     )
 
@@ -559,7 +561,7 @@ class DataCollectionValidator:
 
         summary = self.results["summary"]
         print(f"Total Checks: {summary['total']}")
-        print(f"  {Colors.GREEN}✓{Colors.END} Passed: {summary['passed']}")
+        print(f"  {Colors.GREEN}PASS:{Colors.END} Passed: {summary['passed']}")
         print(f"  {Colors.YELLOW}WARNING:{Colors.END} Warnings: {summary['warnings']}")
         print(f"  {Colors.RED}FAIL:{Colors.END} Failed: {summary['failed']}")
 
@@ -567,7 +569,7 @@ class DataCollectionValidator:
         status = self.results["overall_status"]
         if status == "passed":
             color = Colors.GREEN
-            symbol = "✓"
+            symbol = "PASS:"
             message = "All checks passed! Data collection is healthy."
         elif status == "warning":
             color = Colors.YELLOW

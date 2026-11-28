@@ -390,7 +390,7 @@ export default function SiteDetail() {
                           onClick={() => setHealthFilter('')}
                           className="text-gray-500 hover:text-white transition-colors"
                         >
-                          ✕ Clear
+                          Clear
                         </button>
                       )}
                     </div>

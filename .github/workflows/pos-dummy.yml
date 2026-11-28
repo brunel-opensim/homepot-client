@@ -110,7 +110,7 @@ jobs:
         echo "" >> pos-dummy-report.md
         
         if [ $? -eq 0 ]; then
-          echo "**Result:** ✓ PASSED - HOMEPOT infrastructure is functional" >> pos-dummy-report.md
+          echo "**Result:** PASSED - HOMEPOT infrastructure is functional" >> pos-dummy-report.md
           echo "" >> pos-dummy-report.md
           echo "All critical HOMEPOT components verified successfully:" >> pos-dummy-report.md
           echo "- Module imports and dependencies" >> pos-dummy-report.md  
@@ -148,7 +148,7 @@ jobs:
         echo "**Mode:** ${{ steps.test-mode.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
         
         if [ $? -eq 0 ]; then
-          echo "**Status:** ✓ PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** PASSED" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "HOMEPOT infrastructure is verified and functional. All critical components passed validation." >> $GITHUB_STEP_SUMMARY
         else
