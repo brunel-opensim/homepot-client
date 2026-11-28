@@ -58,12 +58,23 @@ The uncertain inputs are:
 |---|---|---|---|---|
 | `success_rate` $p$ | Beta | $\alpha=19,\, \beta=1$ | 0.95 | Encodes "≈19 successes per 1 failure" — weakly informative prior |
 | `num_devices` $n$ | DiscreteUniform | 1 – 50 | 25.5 | Full range of realistic campaign sizes |
+| `delivery_delay_ms` $d$ | Uniform | 100 – 500 ms | 300 | Per-device delivery delay (scales campaign completion time) |
+| `network_latency_ms` $l$ | Uniform | 10 – 200 ms | 105 | Network round-trip latency (degrades success rate) |
+| `wifi_signal_dbm` $s$ | Uniform | -90 – -40 dBm | -65 | Wi-Fi signal strength (more negative = weaker; degrades success rate) |
+
+Network quality degrades the effective success rate:
+
+$$\text{latency\_penalty} = \min(l / 500,\; 0.3) \quad \text{(up to 30\% from high latency)}$$
+
+$$\text{signal\_penalty} = \max(0,\; \min((-s - 70) / 30,\; 0.3)) \quad \text{(up to 30\% from weak signal)}$$
+
+$$\text{effective\_p} = \max(0.1,\; p - \text{latency\_penalty} - \text{signal\_penalty})$$
 
 Campaign completion time is the maximum delay across all $n$ concurrent deliveries:
 
 $$\tau_{\text{campaign}} = \max(\tau_1, \ldots, \tau_n), \quad \tau_i \sim \text{Uniform}(100, 500\text{ ms})$$
 
-$$\mathbb{E}[\tau_{\text{campaign}}] = 100 + 400 \cdot \frac{n}{n+1} \text{ ms}$$
+$$\mathbb{E}[\tau_{\text{campaign}}] = 100 + d \cdot \frac{n}{n+1} \text{ ms}$$
 
 ### Deterministic expected-value runner
 
@@ -72,9 +83,9 @@ variance decomposition is well-defined and numerically stable:
 
 | Output | Formula |
 |---|---|
-| `expected_failures` | $n(1-p)$ |
-| `failure_rate` | $1-p$ |
-| `campaign_time_ms` | $100 + 400\,\tfrac{n}{n+1}$ |
+| `expected_failures` | $n(1 - \text{effective\_p})$ |
+| `failure_rate` | $1 - \text{effective\_p}$ |
+| `campaign_time_ms` | $100 + d\,\tfrac{n}{n+1}$ |
 
 Post-collation $P(\text{at least }k\text{ succeed})$ is computed from
 `scipy.stats.binom.cdf` applied to the mean success rate from the collated samples.
@@ -82,7 +93,8 @@ Post-collation $P(\text{at least }k\text{ succeed})$ is computed from
 ### Scope assumptions
 
 - Independent device deliveries
-- Uniform per-device delay in [100, 500] ms
+- Per-device delivery delay in [100, 500] ms (sampled per campaign)
+- Network quality (latency, Wi-Fi signal) modulates the effective per-device success rate
 - Campaign-level QoIs are expected values, not single stochastic realizations
 
 These assumptions are reasonable for first-order UQ, but they likely under-represent
@@ -96,9 +108,9 @@ Study 3 uses the same **EasyVVUQ `MCSampler` + `QMCAnalysis`** framework as Stud
 
 ### Sampling plan
 
-- **d = 2** inputs, **N_MC = 5,000** → **20,000 Saltelli samples** (main campaign)
-- Three sensitivity campaigns at N_MC = 1,000 (→ 4,000 samples each) with alternative
-  Beta priors on `success_rate`
+- **d = 5** inputs, **N_MC = 5,000** → **35,000 Saltelli samples** (main campaign)
+- Three sensitivity campaigns at N_MC = 1,000 (→ 7,000 samples each) with alternative
+  Beta priors on `success_rate` (network params held at nominal)
 - Executed with `ThreadPoolExecutor(max_workers=4)`
 
 ### Why this method

@@ -7,12 +7,20 @@ size) drives delivery variance.
 
 Model (deterministic expected-value runner)
 --------------------------------------------
-Let  p = success_rate  ~ Beta(19, 1)           mean=0.95, weakly-informative
-     n = num_devices   ~ DiscreteUniform(1, 50) values 1–50  (inclusive)
+Let  p = success_rate       ~ Beta(19, 1)           mean=0.95, weakly-informative
+     n = num_devices       ~ DiscreteUniform(1, 50) values 1–50  (inclusive)
+     d = delivery_delay_ms ~ Uniform(100, 500)       per-device delivery delay (ms)
+     l = network_latency_ms ~ Uniform(10, 200)       network round-trip latency (ms)
+     s = wifi_signal_dbm   ~ Uniform(-90, -40)       Wi-Fi signal strength (dBm)
 
-  expected_failures  = n * (1 - p)
-  failure_rate       = 1 - p
-  campaign_time_ms   = 100 + 400 * n / (n + 1)   (saturation model)
+Network quality degrades the effective success rate:
+  latency_penalty = min(l / 500, 0.3)                up to 30% from high latency
+  signal_penalty  = max(0, min((-s - 70) / 30, 0.3)) up to 30% from weak signal
+  effective_p     = max(0.1, p - latency_penalty - signal_penalty)
+
+  expected_failures  = n * (1 - effective_p)
+  failure_rate       = 1 - effective_p
+  campaign_time_ms   = 100 + d * n / (n + 1)         (saturation model, scaled by delay)
 
 The runner (``push_runner.py``) is deterministic so that QMCAnalysis can
 decompose variance via Sobol indices.  P(at least k succeed) is computed
@@ -20,8 +28,8 @@ post-collation from scipy.stats.binom.cdf applied to the collated samples.
 
 EasyVVUQ Saltelli plan
 -----------------------
-  2 inputs → MCSampler total = N_MC * (n_params + 2) = N_MC * 4
-  N_MC = 5 000 → 20 000 samples
+  5 inputs → MCSampler total = N_MC * (n_params + 2) = N_MC * 7
+  N_MC = 5 000 → 35 000 samples
 
 Sensitivity analysis (lightweight campaigns)
 ---------------------------------------------
@@ -77,12 +85,20 @@ print(f"[INFO] Homepot root: {HOMEPOT_ROOT}")
 params = {
     "success_rate": {"type": "float", "default": 0.95, "min": 0.0, "max": 1.0},
     "num_devices": {"type": "float", "default": 25.0, "min": 1.0, "max": 50.0},
+    "delivery_delay_ms": {
+        "type": "float",
+        "default": 300.0,
+        "min": 50.0,
+        "max": 1000.0,
+    },
+    "network_latency_ms": {"type": "float", "default": 50.0, "min": 0.0, "max": 500.0},
+    "wifi_signal_dbm": {"type": "float", "default": -60.0, "min": -100.0, "max": -20.0},
     "outfile": {"type": "string", "default": "output.json"},
 }
 
 QOI_COLS = ["expected_failures", "failure_rate", "campaign_time_ms"]
 
-N_MC_MAIN = 5_000  # → 20 000 Saltelli samples (2 params → *4)
+N_MC_MAIN = 5_000  # → 35 000 Saltelli samples (5 inputs → *7)
 
 # ---------------------------------------------------------------------------
 # Shared encoder / decoder
@@ -157,6 +173,9 @@ def run_campaign(vary: dict, n_mc: int, seed: int, name: str) -> tuple:
 VARY_NOMINAL = {
     "success_rate": cp.Beta(19.0, 1.0),  # mean = 0.95
     "num_devices": cp.DiscreteUniform(1, 50),  # integers 1–50 inclusive
+    "delivery_delay_ms": cp.Uniform(100.0, 500.0),
+    "network_latency_ms": cp.Uniform(10.0, 200.0),
+    "wifi_signal_dbm": cp.Uniform(-90.0, -40.0),
 }
 
 res_main, df_main = run_campaign(VARY_NOMINAL, N_MC_MAIN, seed=0, name="push3_nominal")
@@ -171,7 +190,7 @@ scores_time = df_main["campaign_time_ms"].values.astype(float)
 print("\n" + "=" * 72)
 print("MAIN CAMPAIGN RESULTS  (EasyVVUQ MCSampler, nominal priors)")
 print("=" * 72)
-print(f"  N_MC={N_MC_MAIN} → {N_MC_MAIN * 4:,} Saltelli samples\n")
+print(f"  N_MC={N_MC_MAIN} → {N_MC_MAIN * 7:,} Saltelli samples\n")
 
 for qoi, arr, unit in [
     ("expected_failures", scores_ef, "devices"),
@@ -188,15 +207,23 @@ for qoi, arr, unit in [
     )
 
 # ── Sobol indices ───────────────────────────────────────────────────────────
-print("\n" + "-" * 72)
+print("\n" + "-" * 90)
 print("  First-order Sobol indices — fraction of QoI variance")
-print(f"  {'QoI':<22}  {'success_rate':>14}  {'num_devices':>12}")
-print("  " + "-" * 52)
+print(
+    f"  {'QoI':<22}  {'success_rate':>14}  {'num_devices':>12}  "
+    f"{'delay_ms':>10}  {'latency_ms':>12}  {'wifi_dbm':>10}"
+)
+print("  " + "-" * 80)
 for qoi in QOI_COLS:
     s1 = res_main.sobols_first(qoi)
     sr = float(np.atleast_1d(s1.get("success_rate", 0.0)).flat[0])
     nd = float(np.atleast_1d(s1.get("num_devices", 0.0)).flat[0])
-    print(f"  {qoi:<22}  {sr:14.4f}  {nd:12.4f}")
+    dd = float(np.atleast_1d(s1.get("delivery_delay_ms", 0.0)).flat[0])
+    nl = float(np.atleast_1d(s1.get("network_latency_ms", 0.0)).flat[0])
+    ws = float(np.atleast_1d(s1.get("wifi_signal_dbm", 0.0)).flat[0])
+    print(
+        f"  {qoi:<22}  {sr:14.4f}  {nd:12.4f}  {dd:10.4f}  " f"{nl:12.4f}  {ws:10.4f}"
+    )
 
 # ---------------------------------------------------------------------------
 # Post-collation P(at least k succeed) for a campaign of N=50 devices
@@ -246,6 +273,7 @@ for key, (label, prior) in SENSITIVITY_SCENARIOS.items():
     vary_s = {
         "success_rate": prior,
         "num_devices": cp.DiscreteUniform(1, 50),
+        # Network params held at nominal (defaults) for prior-sensitivity runs
     }
     r_s, df_s = run_campaign(vary_s, N_MC_SENSITIVITY, seed=7, name=f"push3_{key}")
     sens_results[key] = {
@@ -258,6 +286,7 @@ for key, (label, prior) in SENSITIVITY_SCENARIOS.items():
 print("\n" + "=" * 72)
 print("SENSITIVITY TO success_rate PRIOR  (n ~ DiscreteUniform(1,50))")
 print("=" * 72)
+print("  Network params held at nominal (delay=300ms, latency=50ms, signal=-60dBm)")
 print(
     f"\n  {'Prior':<32} {'E[fail rate]':>12} {'P10':>8} {'P90':>8} "
     f"{'S1(p)':>8} {'S1(n)':>8}"
