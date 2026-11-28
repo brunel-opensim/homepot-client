@@ -341,6 +341,13 @@ class AgentService:
                     active_connections=payload.active_connections,
                     wifi_signal_dbm=payload.wifi_signal_dbm,
                     wifi_link_rate_mbps=payload.wifi_link_rate_mbps,
+                    battery_percent=payload.battery_percent,
+                    battery_charging=payload.battery_charging,
+                    cpu_temp_c=payload.cpu_temp_c,
+                    system_temp_c=payload.system_temp_c,
+                    gpu_temp_c=payload.gpu_temp_c,
+                    cpu_speed_mhz=payload.cpu_speed_mhz,
+                    cpu_speed_max_mhz=payload.cpu_speed_max_mhz,
                     provenance=provenance.value if provenance else None,
                     collection_interval_seconds=payload.collection_interval_seconds,
                 )
@@ -375,6 +382,13 @@ class AgentService:
                     "active_connections": item.active_connections,
                     "wifi_signal_dbm": item.wifi_signal_dbm,
                     "wifi_link_rate_mbps": item.wifi_link_rate_mbps,
+                    "battery_percent": item.battery_percent,
+                    "battery_charging": item.battery_charging,
+                    "cpu_temp_c": item.cpu_temp_c,
+                    "system_temp_c": item.system_temp_c,
+                    "gpu_temp_c": item.gpu_temp_c,
+                    "cpu_speed_mhz": item.cpu_speed_mhz,
+                    "cpu_speed_max_mhz": item.cpu_speed_max_mhz,
                     "timestamp": item.timestamp,
                 }
                 for item in entries

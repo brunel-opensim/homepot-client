@@ -206,6 +206,13 @@ class AgentRepository:
         active_connections: int | None = None,
         wifi_signal_dbm: float | None = None,
         wifi_link_rate_mbps: float | None = None,
+        battery_percent: float | None = None,
+        battery_charging: bool | None = None,
+        cpu_temp_c: float | None = None,
+        system_temp_c: float | None = None,
+        gpu_temp_c: float | None = None,
+        cpu_speed_mhz: float | None = None,
+        cpu_speed_max_mhz: float | None = None,
         provenance: str | None = None,
         collection_interval_seconds: int | None = None,
     ) -> DeviceMetrics:
@@ -225,6 +232,20 @@ class AgentRepository:
             extra["wifi_signal_dbm"] = wifi_signal_dbm
         if wifi_link_rate_mbps is not None:
             extra["wifi_link_rate_mbps"] = wifi_link_rate_mbps
+        if battery_percent is not None:
+            extra["battery_percent"] = battery_percent
+        if battery_charging is not None:
+            extra["battery_charging"] = battery_charging
+        if cpu_temp_c is not None:
+            extra["cpu_temp_c"] = cpu_temp_c
+        if system_temp_c is not None:
+            extra["system_temp_c"] = system_temp_c
+        if gpu_temp_c is not None:
+            extra["gpu_temp_c"] = gpu_temp_c
+        if cpu_speed_mhz is not None:
+            extra["cpu_speed_mhz"] = cpu_speed_mhz
+        if cpu_speed_max_mhz is not None:
+            extra["cpu_speed_max_mhz"] = cpu_speed_max_mhz
         metric = DeviceMetrics(
             device_id=device_pk,
             cpu_percent=cpu_usage,
@@ -274,6 +295,27 @@ class AgentRepository:
             link_rate = entry.get("wifi_link_rate_mbps")
             if link_rate is not None:
                 extra["wifi_link_rate_mbps"] = link_rate
+            battery = entry.get("battery_percent")
+            if battery is not None:
+                extra["battery_percent"] = battery
+            charging = entry.get("battery_charging")
+            if charging is not None:
+                extra["battery_charging"] = charging
+            cpu_temp = entry.get("cpu_temp_c")
+            if cpu_temp is not None:
+                extra["cpu_temp_c"] = cpu_temp
+            sys_temp = entry.get("system_temp_c")
+            if sys_temp is not None:
+                extra["system_temp_c"] = sys_temp
+            gpu_temp = entry.get("gpu_temp_c")
+            if gpu_temp is not None:
+                extra["gpu_temp_c"] = gpu_temp
+            cpu_speed = entry.get("cpu_speed_mhz")
+            if cpu_speed is not None:
+                extra["cpu_speed_mhz"] = cpu_speed
+            cpu_max = entry.get("cpu_speed_max_mhz")
+            if cpu_max is not None:
+                extra["cpu_speed_max_mhz"] = cpu_max
             metric = DeviceMetrics(
                 device_id=device_pk,
                 cpu_percent=entry["cpu_usage"],

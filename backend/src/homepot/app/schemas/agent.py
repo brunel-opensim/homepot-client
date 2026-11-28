@@ -160,6 +160,38 @@ class AgentTelemetryRequest(BaseModel):
         ge=0,
         description="Wi-Fi negotiated link rate in Mbps",
     )
+    battery_percent: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="Battery charge percentage",
+    )
+    battery_charging: Optional[bool] = Field(
+        default=None,
+        description="Whether the battery is currently charging",
+    )
+    cpu_temp_c: Optional[float] = Field(
+        default=None,
+        description="CPU temperature in Celsius",
+    )
+    system_temp_c: Optional[float] = Field(
+        default=None,
+        description="System/ambient temperature in Celsius",
+    )
+    gpu_temp_c: Optional[float] = Field(
+        default=None,
+        description="GPU temperature in Celsius",
+    )
+    cpu_speed_mhz: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Current CPU clock speed in MHz",
+    )
+    cpu_speed_max_mhz: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Maximum (nominal) CPU clock speed in MHz",
+    )
     uptime_seconds: Optional[int] = Field(
         default=None, ge=0, description="System uptime in seconds"
     )
