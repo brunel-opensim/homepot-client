@@ -1,0 +1,15 @@
+{
+    "outfile": "$outfile",
+    "cpu_percent": $cpu_percent,
+    "memory_percent": $memory_percent,
+    "disk_percent": $disk_percent,
+    "error_rate": $error_rate,
+    "network_latency_ms": $network_latency_ms,
+    "flapping_count": $flapping_count,
+    "consecutive_failures": $consecutive_failures,
+    "battery_percent": $battery_percent,
+    "cpu_temp_c": $cpu_temp_c,
+    "cpu_speed_mhz": $cpu_speed_mhz,
+    "cpu_speed_max_mhz": $cpu_speed_max_mhz,
+    "wifi_signal_dbm": $wifi_signal_dbm
+}
