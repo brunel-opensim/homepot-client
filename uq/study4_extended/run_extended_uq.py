@@ -164,10 +164,10 @@ SCENARIOS: dict[str, dict[str, cp.Distribution]] = {
         "network_latency_ms": cp.Uniform(100.0, 200.0),
         "flapping_count": cp.Uniform(3.0, 7.0),
         "consecutive_failures": cp.Uniform(2.0, 6.0),
-        "battery_percent": cp.Uniform(20.0, 50.0),
+        "battery_percent": cp.Uniform(10.0, 50.0),
         "cpu_temp_c": cp.Uniform(80.0, 95.0),
         "cpu_speed_mhz": cp.Uniform(800.0, 1400.0),
-        "wifi_signal_dbm": cp.Uniform(-95.0, -80.0),
+        "wifi_signal_dbm": cp.Uniform(-90.0, -70.0),
     },
     "offline": {
         "cpu_percent": cp.Uniform(0.0, _EPS),
