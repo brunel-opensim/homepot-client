@@ -254,7 +254,7 @@ function Step1() {
           <p className="text-emerald-500 text-xs">Site credentials verified</p>
         )}
         {credentialStatus === 'invalid' && (
-          <p className="text-red-400 text-xs">✗ Site ID or bootstrap key is incorrect.</p>
+          <p className="text-red-400 text-xs">Site ID or bootstrap key is incorrect.</p>
         )}
         {credentialStatus === 'unavailable' && (
           <p className="text-amber-400 text-xs">Unable to verify site credentials. Please try again.</p>
@@ -286,7 +286,7 @@ function Step1() {
           <p className="text-emerald-500 text-xs">Name available</p>
         )}
         {nameStatus === 'taken' && (
-          <p className="text-red-400 text-xs">✗ Name already in use in this site — pick a different name.</p>
+          <p className="text-red-400 text-xs">Name already in use in this site — pick a different name.</p>
         )}
       </div>
 
@@ -611,7 +611,7 @@ function ModeStep() {
         >
           <div className="flex items-center justify-between">
             <span className="text-slate-200 font-medium text-sm">Set up a real device</span>
-            {useEmulator === false && <span className="text-emerald-400 text-sm">✓</span>}
+            {useEmulator === false && <span className="text-emerald-400 text-sm">Selected</span>}
           </div>
           <p className="text-slate-400 text-xs mt-1">Provision this physical device with the verified setup details.</p>
         </button>
@@ -625,7 +625,7 @@ function ModeStep() {
         >
           <div className="flex items-center justify-between">
             <span className="text-slate-200 font-medium text-sm">Launch emulated device</span>
-            {useEmulator && <span className="text-emerald-400 text-sm">✓</span>}
+            {useEmulator && <span className="text-emerald-400 text-sm">Selected</span>}
           </div>
           <p className="text-slate-400 text-xs mt-1">Start a simulated device for development and testing.</p>
         </button>

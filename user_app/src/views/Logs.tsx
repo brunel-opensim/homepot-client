@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import TabBar from '../components/TabBar'
+import Icon from '../components/Icon'
 import { credentialStorage } from '../services/credentialStorage'
 import {
   fetchDeviceLogs,
@@ -259,7 +260,7 @@ export default function Logs() {
             <p className="text-slate-500 text-xs">Application Logs</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center">
-            <span className="text-base"></span>
+            <span className="text-base"><Icon name="logs" /></span>
           </div>
         </div>
 

@@ -1,11 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom'
+import Icon, { type IconName } from './Icon'
 
-const TABS = [
-  { id: 'home', label: 'Home', icon: '⊙', path: '/home' },
-  { id: 'permissions', label: 'Perms', icon: '🔒', path: '/permissions' },
-  { id: 'logs', label: 'Logs', icon: '', path: '/logs' },
-  { id: 'settings', label: 'Settings', icon: '⚙', path: '/settings' },
-] as const
+const TABS: { id: string; label: string; icon: IconName; path: string }[] = [
+  { id: 'home', label: 'Home', icon: 'home', path: '/home' },
+  { id: 'permissions', label: 'Perms', icon: 'lock', path: '/permissions' },
+  { id: 'logs', label: 'Logs', icon: 'logs', path: '/logs' },
+  { id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' },
+]
 
 export default function TabBar() {
   const location = useLocation()
@@ -23,7 +24,9 @@ export default function TabBar() {
               : 'text-slate-500 hover:text-slate-300'
           }`}
         >
-          <span className="text-base">{tab.icon}</span>
+          <span className="text-base">
+            <Icon name={tab.icon} />
+          </span>
           {tab.label}
         </button>
       ))}
