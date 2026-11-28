@@ -142,15 +142,18 @@ study (gitignored, created at runtime).
 ```
 uq/
 ├── README.md                           ← this file — overview, setup, study index
+├── common/                             ← shared runner logic for the anomaly studies
+│   ├── __init__.py
+│   └── runner.py                      ← run_anomaly(): casting + output writing
 ├── study1_anomaly/                     ← Study 1: anomaly detector sensitivity (PCE)
 │   ├── run_anomaly_uq.py               ← campaign script
-│   ├── anomaly_runner.py               ← model wrapper
+│   ├── anomaly_runner.py               ← thin shim delegating to common/runner.py
 │   ├── anomaly_runner.template         ← EasyVVUQ GenericEncoder template
 │   ├── figs/                           ← output plots (gitignored)
 │   └── campaign_anomaly_uq/            ← EasyVVUQ working dir (gitignored)
 ├── study2_simulator/                   ← Study 2: simulator scenario validation (MCSampler)
 │   ├── run_simulator_uq.py             ← campaign script
-│   ├── anomaly_runner.py               ← model wrapper (local copy, independent of Study 1)
+│   ├── anomaly_runner.py               ← thin shim delegating to common/runner.py
 │   ├── anomaly_runner.template         ← EasyVVUQ GenericEncoder template
 │   └── figs/                           ← output plots (gitignored)
 └── study3_push/                        ← Study 3: push notification reliability (MCSampler)
