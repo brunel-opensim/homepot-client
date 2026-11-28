@@ -22,7 +22,7 @@
 ## Background and motivation
 
 The `AnomalyDetector` class in `ai/anomaly_detection.py`
-is responsible for deciding whether a POS device is behaving abnormally. It is called
+is responsible for deciding whether a device is behaving abnormally. It is called
 by the AI API layer and its score directly influences what alerts operators see.
 
 The detector reads seven metrics from a device and computes a score between 0.0
@@ -138,10 +138,10 @@ this in mind:
 | `cpu_percent` | Uniform | 5% – 100% | 90% | ~11% | Wide range so healthy devices (5–80%) dominate; fires only in the tail |
 | `memory_percent` | Uniform | 10% – 100% | 90% | ~11% | Same rationale as CPU |
 | `disk_percent` | Uniform | 10% – 100% | 90% | ~11% | Same rationale as CPU |
-| `error_rate` | Uniform | 0 – 50% | 5% | ~90% | Fires almost always — saturation paradox (see Results) |
-| `network_latency_ms` | Uniform | 10ms – 1000ms | 200ms | ~81% | Covers realistic production range; fires most of the time |
+| `error_rate` | Uniform | 0 – 20% | 5% | ~75% | Narrowed from 0–50% for more realistic device scenarios; fires in 3/4 of samples |
+| `network_latency_ms` | Uniform | 10ms – 500ms | 200ms | ~61% | Narrowed from 10–1000ms; covers realistic production range |
 | `flapping_count` | Uniform | 0 – 10 per hr | 5 | ~50% | Balanced; fires half the time |
-| `consecutive_failures` | Uniform | 0 – 15 | 3 | ~80% | Extended max to 15 to cover severe multi-hour outage scenarios |
+| `consecutive_failures` | Uniform | 0 – 10 | 3 | ~70% | Narrowed from 0–15 for more realistic outage scenarios |
 
 These are defined in `run_anomaly_uq.py` in the `vary` dictionary.
 
@@ -185,12 +185,12 @@ The campaign ran successfully: **2 187 samples, all completed**.
 | 10th percentile | **0.821** | 90% of sampled device states score *above* 0.82 |
 | 90th percentile | ≈ **1.0** (capped) | The upper tail is firmly at the score cap — most devices reach the maximum |
 
-> **Note:** These results use calibrated input ranges (see table above) with a wider
-> spread of error rates (0–50%) and network latency (10–1000ms), reflecting the full
-> range of devices seen in production. The Rec-A-only run (narrower ranges, post-fix)
+> **Note:** These results use calibrated input ranges (see table above) with a tighter
+> spread of error rates (0–20%) and network latency (10–500ms), reflecting more
+> realistic device scenarios. The Rec-A-only run (narrower ranges, post-fix)
 > gave mean=0.948, std=0.126; the original pre-fix run gave mean=0.91, std=0.18.
 
-To put these numbers in plain terms: imagine sampling 2 187 real POS devices from
+To put these numbers in plain terms: imagine sampling 2 187 real devices from
 across a fleet, spanning the full range of CPU loads, error rates, and health check
 outcomes that you would normally expect to see. The anomaly detector would rate:
 
@@ -246,10 +246,10 @@ This is the **saturation paradox**:
 > - A parameter that **always fires** raises the baseline score for *every* device,
 >   inflating the mean toward 1.0 and suppressing variance.
 
-For `error_rate`: with the range extended to 0–50% and a threshold of 5%, the error
-rate check fires in ~90% of samples. It is essentially always on, contributing a
-flat +0.50 to almost every score. It cannot be the "deciding factor" in any sample
-because it is rarely absent. Sobol = 0.
+For `error_rate`: with the range narrowed to 0–20% and a threshold of 5%, the error
+rate check fires in ~75% of samples. It is still frequently on, contributing a
+flat +0.50 to most scores. It cannot be the "deciding factor" in most samples
+because it is rarely absent. Sobol = low.
 
 For `cpu_percent`, `memory_percent`, `disk_percent`: the opposite problem — thresholds
 set at 90% mean these checks fire in only ~11% of samples, so they rarely change the
@@ -294,7 +294,7 @@ so the score is already being pushed to 1.0 before they get a chance to be the d
 factor). The resource checks are nearly invisible to the scoring system at the current
 90% thresholds across the calibrated input space.
 
-- A POS device running at **95% CPU, 92% memory, 88% disk simultaneously** scores
+- A device running at **95% CPU, 92% memory, 88% disk simultaneously** scores
   **0.60** (three × 0.20). This is below a typical "critical" alert threshold.
 - A device that has **failed three health checks in a row** scores **0.80**
   immediately, regardless of its resource usage.
