@@ -512,28 +512,24 @@ jobs:
     name: Publish Draft Release
     needs: [package, sign-windows]
     runs-on: ubuntu-latest
-    if: always()
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
 
     steps:
       - name: Checkout code
-        if: steps.check-secrets.outputs.available == 'true'
         uses: actions/checkout@v4
 
       - name: Download all package artifacts
-        if: steps.check-secrets.outputs.available == 'true'
         uses: actions/download-artifact@v4
         with:
           path: releases
           merge-multiple: true
 
       - name: Show release files
-        if: steps.check-secrets.outputs.available == 'true'
         run: ls -laR releases
 
       - name: Merge per-platform checksum fragments
-        if: steps.check-secrets.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -579,7 +575,6 @@ jobs:
           PY
 
       - name: Get version from app package
-        if: steps.check-secrets.outputs.available == 'true'
         id: version
         run: echo "APP_VERSION=v$(node -p "require('./user_app/package.json').version")" >> "$GITHUB_OUTPUT"
 
@@ -598,7 +593,6 @@ jobs:
       # A re-run of the same tree passes: its digests match. A rebuild after a
       # code change fails until the version is bumped.
       - name: Refuse to republish different bytes under the same version
-        if: steps.check-secrets.outputs.available == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -677,7 +671,6 @@ jobs:
           PY
 
       - name: Create/update draft release
-        if: steps.check-secrets.outputs.available == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
