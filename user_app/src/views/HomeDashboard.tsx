@@ -43,6 +43,13 @@ function RadarPing() {
   )
 }
 
+// Solid "status LED" for the settled online/offline states, matching the
+// RadarPing centre dot. Uses a plain coloured dot instead of a checkmark or
+// cross glyph, so the badge stays readable without a status glyph.
+function StatusDot({ className }: { className: string }) {
+  return <span className={`inline-flex h-2.5 w-2.5 rounded-full ${className}`} />
+}
+
 // Real, honest connection checklist — each step lights up only when the
 // corresponding signal has actually arrived from the backend.
 function ConnectionChecklist({
@@ -299,6 +306,7 @@ export default function HomeDashboard() {
     ? {
         card: 'bg-emerald-950 border border-emerald-800',
         circle: 'border-emerald-400 bg-emerald-900',
+        center: 'bg-emerald-400',
         text: 'text-emerald-400',
         label: 'SECURE — ONLINE',
         dot: 'bg-emerald-400 animate-pulse',
@@ -307,6 +315,7 @@ export default function HomeDashboard() {
       ? {
           card: 'bg-amber-950 border border-amber-800',
           circle: 'border-amber-400 bg-amber-900',
+          center: 'bg-amber-400',
           text: 'text-amber-400',
           label: 'CONNECTING…',
           dot: 'bg-amber-400 animate-pulse',
@@ -314,6 +323,7 @@ export default function HomeDashboard() {
       : {
           card: 'bg-red-950 border border-red-800',
           circle: 'border-red-400 bg-red-900',
+          center: 'bg-red-400',
           text: 'text-red-400',
           label: 'OFFLINE',
           dot: 'bg-red-500',
@@ -357,7 +367,7 @@ export default function HomeDashboard() {
         <div className="px-5 pt-4">
           <div className={`w-full rounded-xl p-4 flex items-center gap-3 ${statusStyles.card}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 flex-shrink-0 ${statusStyles.circle}`}>
-              {isConnecting && <RadarPing />}
+              {isConnecting ? <RadarPing /> : <StatusDot className={statusStyles.center} />}
             </div>
             <div>
               <p className={`font-bold text-sm ${statusStyles.text}`}>
