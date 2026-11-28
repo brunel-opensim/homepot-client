@@ -134,6 +134,7 @@ study (gitignored, created at runtime).
 | 1 | [Anomaly Detector Sensitivity](../docs/uq/study1-anomaly.md) | `ai/anomaly_detection.py` | PCE order 2, Sobol | 2 187 | Done |
 | 2 | [Simulator Scenario Boundary Validation](../docs/uq/study2-simulator.md) | `DeviceSimulatorEndpoint._generate_metrics_for_scenario()` | MCSampler / Saltelli, Sobol | 16 200 | Done |
 | 3 | [Push Notification Delivery Reliability](../docs/uq/study3-push.md) | Push notification delivery model | MCSampler / Saltelli, Sobol | 20 000 + 12 000 | Done |
+| 4 | Extended Anomaly Detector Sensitivity | `ai/anomaly_detection.py` (extended) | MCSampler / Saltelli, Sobol | 19 800 | Done |
 
 ---
 
@@ -161,6 +162,11 @@ uq/
     ├── push_runner.py                  ← deterministic expected-value runner
     ├── push_runner.template            ← EasyVVUQ GenericEncoder template
     └── figs/                           ← output plots (gitignored)
+├── study4_extended/                    ← Study 4: extended detector sensitivity (Saltelli)
+│   ├── run_extended_uq.py              ← campaign script
+│   ├── anomaly_runner.py               ← thin shim delegating to common/runner.py
+│   ├── anomaly_runner.template         ← EasyVVUQ GenericEncoder template
+│   └── figs/                           ← output plots (gitignored)
 ```
 
 Detailed methodology, results, and recommendations for each study live in
