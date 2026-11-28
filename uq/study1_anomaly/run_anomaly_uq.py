@@ -92,15 +92,15 @@ params = {
     "cpu_percent": {"type": "float", "min": 5.0, "max": 100.0, "default": 50.0},
     "memory_percent": {"type": "float", "min": 10.0, "max": 100.0, "default": 50.0},
     "disk_percent": {"type": "float", "min": 10.0, "max": 100.0, "default": 50.0},
-    "error_rate": {"type": "float", "min": 0.0, "max": 0.50, "default": 0.05},
+    "error_rate": {"type": "float", "min": 0.0, "max": 0.20, "default": 0.05},
     "network_latency_ms": {
         "type": "float",
         "min": 10.0,
-        "max": 1000.0,
+        "max": 500.0,
         "default": 150.0,
     },
     "flapping_count": {"type": "float", "min": 0.0, "max": 10.0, "default": 2.0},
-    "consecutive_failures": {"type": "float", "min": 0.0, "max": 15.0, "default": 2.0},
+    "consecutive_failures": {"type": "float", "min": 0.0, "max": 10.0, "default": 2.0},
     "outfile": {"type": "string", "default": "output.json"},
 }
 
@@ -111,10 +111,10 @@ vary = {
     "cpu_percent": cp.Uniform(5.0, 100.0),
     "memory_percent": cp.Uniform(10.0, 100.0),
     "disk_percent": cp.Uniform(10.0, 100.0),
-    "error_rate": cp.Uniform(0.0, 0.50),
-    "network_latency_ms": cp.Uniform(10.0, 1000.0),
+    "error_rate": cp.Uniform(0.0, 0.20),
+    "network_latency_ms": cp.Uniform(10.0, 500.0),
     "flapping_count": cp.Uniform(0.0, 10.0),
-    "consecutive_failures": cp.Uniform(0.0, 15.0),
+    "consecutive_failures": cp.Uniform(0.0, 10.0),
 }
 
 
