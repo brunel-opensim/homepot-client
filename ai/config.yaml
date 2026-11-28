@@ -226,6 +226,10 @@ anomaly_detection:
     error_rate: 0.05                 # ratio (5%); above this flags "High Error Rate"
     max_flapping_count: 5            # state changes per hour; above this flags "High Instability"
     consecutive_failures: 3          # health-check failures in a row; at/above this flags "System Failure"
+    battery_low_percent: 20.0       # %; at/below this (and not charging) flags "Low Battery"
+    cpu_temp_c: 85.0                # °C; above this flags "High Temperature"
+    cpu_throttle_ratio: 0.5         # fraction of nominal max clock; below this flags "CPU Throttled"
+    wifi_signal_dbm: -80.0          # dBm; below (more negative) this flags "Weak Wi-Fi Signal"
 
 # Validation-gate thresholds for the AI trust envelope (ai/gates/*).
 #

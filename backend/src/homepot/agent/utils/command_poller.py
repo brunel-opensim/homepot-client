@@ -3879,6 +3879,108 @@ def get_cpu_speed() -> Optional[float]:
     return None
 
 
+def get_cpu_max_speed_mhz() -> Optional[float]:
+    """Return the maximum (nominal) CPU clock speed in MHz (best-effort).
+
+    Used alongside the current speed to detect thermal/power throttling.
+    Returns None when the maximum cannot be determined.
+    """
+    # Try psutil first
+    try:
+        freq = psutil.cpu_freq()
+        if freq is not None and freq.max and freq.max > 100:
+            return round(float(freq.max), 0)
+    except Exception:  # noqa: BLE001
+        pass
+
+    if _is_windows_platform():
+        # Windows: try WMI MaxClockSpeed
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "Get-CimInstance Win32_Processor | "
+                    "Select-Object -First 1 -ExpandProperty MaxClockSpeed",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip()
+            if val.isdigit() and int(val) > 100:
+                return float(val)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["wmic", "cpu", "get", "MaxClockSpeed", "/value"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in (out.stdout or "").splitlines():
+                if "MaxClockSpeed" in line:
+                    val = line.split("=", 1)[-1].strip()
+                    if val.isdigit() and int(val) > 100:
+                        return float(val)
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "linux":
+        # Try /sys first (kHz -> MHz)
+        try:
+            with open("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq") as fh:
+                val = fh.read().strip()
+                if val.isdigit():
+                    mhz = int(val) / 1000.0
+                    if mhz > 100:
+                        return round(mhz, 0)
+        except (OSError, ValueError):
+            pass
+        # Fallback: lscpu "CPU max MHz"
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["lscpu"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in (out.stdout or "").splitlines():
+                if "CPU max MHz" in line:
+                    val = line.split(":", 1)[-1].strip()
+                    try:
+                        mhz = float(val)
+                        if mhz > 100:
+                            return round(mhz, 0)
+                    except ValueError:
+                        pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    elif platform.system().lower() == "darwin":
+        try:
+            out = subprocess.run(  # noqa: S603, S607 - fixed argv, no shell
+                ["sysctl", "-n", "hw.cpufrequency_max"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            val = (out.stdout or "").strip()
+            try:
+                hz = float(val)
+                mhz = hz / 1e6
+                if mhz > 100:
+                    return round(mhz, 0)
+            except ValueError:
+                pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    return None
+
+
 def get_device_temperature() -> Dict[str, Any]:
     """Read device temperature sensors (best-effort, cross-platform).
 

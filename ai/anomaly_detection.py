@@ -17,6 +17,10 @@ DEFAULT_ERROR_RATE = 0.05
 DEFAULT_NETWORK_LATENCY_MS = 200.0
 DEFAULT_MAX_FLAPPING_COUNT = 5
 DEFAULT_CONSECUTIVE_FAILURES = 3
+DEFAULT_BATTERY_LOW_PERCENT = 20.0
+DEFAULT_CPU_TEMP_C = 85.0
+DEFAULT_CPU_THROTTLE_RATIO = 0.5
+DEFAULT_WIFI_SIGNAL_DBM = -80.0
 
 
 class AnomalyDetector:
@@ -53,6 +57,16 @@ class AnomalyDetector:
             "consecutive_failures": thresholds.get(
                 "consecutive_failures", DEFAULT_CONSECUTIVE_FAILURES
             ),
+            "battery_low_percent": thresholds.get(
+                "battery_low_percent", DEFAULT_BATTERY_LOW_PERCENT
+            ),
+            "cpu_temp_c": thresholds.get("cpu_temp_c", DEFAULT_CPU_TEMP_C),
+            "cpu_throttle_ratio": thresholds.get(
+                "cpu_throttle_ratio", DEFAULT_CPU_THROTTLE_RATIO
+            ),
+            "wifi_signal_dbm": thresholds.get(
+                "wifi_signal_dbm", DEFAULT_WIFI_SIGNAL_DBM
+            ),
         }
 
     @staticmethod
@@ -72,7 +86,10 @@ class AnomalyDetector:
         Args:
             metrics: Dictionary containing device metrics.
                      Expected keys: cpu_percent, memory_percent, disk_percent,
-                     error_rate, network_latency_ms, flapping_count, consecutive_failures
+                     error_rate, network_latency_ms, flapping_count, consecutive_failures,
+                     battery_percent, battery_charging, cpu_temp_c, system_temp_c,
+                     cpu_speed_mhz, cpu_speed_max_mhz, wifi_signal_dbm
+                     Optional keys: connectivity_offline, no_telemetry, stale_telemetry
 
         Returns:
             tuple: (Anomaly score, List of anomaly descriptions)
@@ -146,6 +163,49 @@ class AnomalyDetector:
             if disk is not None and disk > self.thresholds["disk_percent"]:
                 score += 0.2
                 anomalies.append(f"High Disk Usage: {disk}%")
+
+            # 3. Device Health Checks (new device-health signals)
+
+            # Low battery (mobile/tablet POS about to lose power)
+            battery = metrics.get("battery_percent")
+            if (
+                battery is not None
+                and battery <= self.thresholds["battery_low_percent"]
+            ):
+                score += 0.3
+                charging = " (charging)" if metrics.get("battery_charging") else ""
+                anomalies.append(f"Low Battery: {battery}%{charging}")
+
+            # High temperature (thermal throttling / failure risk)
+            cpu_temp = metrics.get("cpu_temp_c")
+            sys_temp = metrics.get("system_temp_c")
+            if cpu_temp is not None and cpu_temp > self.thresholds["cpu_temp_c"]:
+                score += 0.3
+                anomalies.append(f"High Temperature: {cpu_temp}C")
+            elif sys_temp is not None and sys_temp > self.thresholds["cpu_temp_c"]:
+                score += 0.3
+                anomalies.append(f"High System Temperature: {sys_temp}C")
+
+            # CPU throttling (current clock well below nominal maximum)
+            cpu_speed = metrics.get("cpu_speed_mhz")
+            cpu_max = metrics.get("cpu_speed_max_mhz")
+            if (
+                cpu_speed is not None
+                and cpu_max is not None
+                and cpu_max > 0
+                and (cpu_speed / cpu_max) < self.thresholds["cpu_throttle_ratio"]
+            ):
+                score += 0.2
+                anomalies.append(f"CPU Throttled: {cpu_speed}MHz vs {cpu_max}MHz max")
+
+            # Weak Wi-Fi signal (link degradation)
+            wifi_signal = metrics.get("wifi_signal_dbm")
+            if (
+                wifi_signal is not None
+                and wifi_signal < self.thresholds["wifi_signal_dbm"]
+            ):
+                score += 0.2
+                anomalies.append(f"Weak Wi-Fi Signal: {wifi_signal}dBm")
 
             # Cap score at 1.0 and scale by sensitivity. A lower sensitivity
             # reports a smaller anomaly score (more conservative), so a

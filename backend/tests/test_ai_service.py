@@ -107,13 +107,109 @@ def test_anomaly_detector_no_telemetry():
     assert any("No telemetry" in r for r in reasons)
 
 
-def test_anomaly_detector_stale_telemetry():
-    """Stale telemetry triggers an anomaly score."""
+def test_anomaly_detector_low_battery():
+    """Low battery (not charging) triggers an anomaly score."""
     detector = AnomalyDetector(sensitivity=1.0)
-    metrics = {"stale_telemetry": True}
+    metrics = {"battery_percent": 10.0, "battery_charging": False}
     score, reasons = detector.check_anomaly(metrics)
     assert score == 0.3
-    assert any("Stale telemetry" in r for r in reasons)
+    assert any("Low Battery" in r for r in reasons)
+
+
+def test_anomaly_detector_low_battery_charging():
+    """A low battery that is charging still flags (conservative)."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"battery_percent": 10.0, "battery_charging": True}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.3
+    assert any("Low Battery" in r for r in reasons)
+
+
+def test_anomaly_detector_low_battery_absent():
+    """A missing battery_percent does not trigger the low-battery signal."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"battery_charging": False}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.0
+
+
+def test_anomaly_detector_high_temperature():
+    """A high CPU temperature triggers an anomaly score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"cpu_temp_c": 92.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.3
+    assert any("High Temperature" in r for r in reasons)
+
+
+def test_anomaly_detector_high_system_temperature():
+    """A high system temperature triggers when no CPU temp is available."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"system_temp_c": 90.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.3
+    assert any("High System Temperature" in r for r in reasons)
+
+
+def test_anomaly_detector_cpu_throttled():
+    """A CPU running well below its max triggers a throttling score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"cpu_speed_mhz": 400.0, "cpu_speed_max_mhz": 2400.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.2
+    assert any("CPU Throttled" in r for r in reasons)
+
+
+def test_anomaly_detector_cpu_not_throttled():
+    """A CPU at full speed does not trigger the throttling signal."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"cpu_speed_mhz": 2000.0, "cpu_speed_max_mhz": 2400.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.0
+    assert all("CPU Throttled" not in r for r in reasons)
+
+
+def test_anomaly_detector_cpu_throttle_no_max():
+    """Without a max speed reference, the throttling signal is skipped."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"cpu_speed_mhz": 400.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.0
+    assert all("CPU Throttled" not in r for r in reasons)
+
+
+def test_anomaly_detector_weak_wifi_signal():
+    """A weak Wi-Fi RSSI triggers an anomaly score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"wifi_signal_dbm": -90.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.2
+    assert any("Weak Wi-Fi Signal" in r for r in reasons)
+
+
+def test_anomaly_detector_strong_wifi_signal():
+    """A strong Wi-Fi RSSI does not trigger the weak-signal score."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {"wifi_signal_dbm": -50.0}
+    score, reasons = detector.check_anomaly(metrics)
+    assert score == 0.0
+    assert all("Weak Wi-Fi Signal" not in r for r in reasons)
+
+
+def test_anomaly_detector_new_signals_capped():
+    """All four new signals together are capped at 1.0."""
+    detector = AnomalyDetector(sensitivity=1.0)
+    metrics = {
+        "battery_percent": 5.0,
+        "cpu_temp_c": 95.0,
+        "cpu_speed_mhz": 300.0,
+        "cpu_speed_max_mhz": 2400.0,
+        "wifi_signal_dbm": -95.0,
+    }
+    score, reasons = detector.check_anomaly(metrics)
+    # 0.3 + 0.3 + 0.2 + 0.2 = 1.0
+    assert score == 1.0
+    assert len(reasons) == 4
 
 
 # ==========================================

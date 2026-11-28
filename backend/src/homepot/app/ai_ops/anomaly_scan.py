@@ -152,6 +152,26 @@ async def _gather_metrics(
                 "error_rate": latest.error_rate,
             }
         )
+        # Device-health fields are persisted in extra_metrics (battery, temp,
+        # CPU speed, Wi-Fi signal, throughput).  Surface them on the metrics
+        # dict so the anomaly detector can score them.
+        extra = latest.extra_metrics if isinstance(latest.extra_metrics, dict) else {}
+        for key in (
+            "battery_percent",
+            "battery_charging",
+            "cpu_temp_c",
+            "system_temp_c",
+            "gpu_temp_c",
+            "cpu_speed_mhz",
+            "cpu_speed_max_mhz",
+            "wifi_signal_dbm",
+            "wifi_link_rate_mbps",
+            "network_download_bytes_s",
+            "network_upload_bytes_s",
+            "active_connections",
+        ):
+            if key in extra and extra[key] is not None:
+                metrics[key] = extra[key]
         ts = latest.timestamp
         if ts is not None:
             if ts.tzinfo is None:

@@ -39,6 +39,9 @@ from homepot.agent.utils.command_poller import (
     build_status_update_payload,
     fetch_device_permissions,
     get_active_connections,
+    get_cpu_max_speed_mhz,
+    get_cpu_speed,
+    get_device_temperature,
     get_wifi_signal_info,
     parse_pending_commands,
     process_command,
@@ -1310,6 +1313,27 @@ async def telemetry_loop(
                 collection_interval_seconds=interval,
             )
             payload["site_id"] = config["site_id"]
+            # Battery (best-effort; None when no battery present)
+            battery_percent = None
+            battery_charging = None
+            try:
+                if psutil is not None:
+                    bat = psutil.sensors_battery()
+                    if bat is not None:
+                        battery_percent = round(float(bat.percent), 1)
+                        battery_charging = bool(bat.power_plugged)
+            except Exception:  # noqa: BLE001
+                pass
+            payload["battery_percent"] = battery_percent
+            payload["battery_charging"] = battery_charging
+            # Temperature (best-effort; None when sensors are unavailable)
+            temp_info = get_device_temperature()
+            payload["cpu_temp_c"] = temp_info.get("cpu_temp_c")
+            payload["system_temp_c"] = temp_info.get("system_temp_c")
+            payload["gpu_temp_c"] = temp_info.get("gpu_temp_c")
+            # CPU speed (best-effort; None when unavailable)
+            payload["cpu_speed_mhz"] = get_cpu_speed()
+            payload["cpu_speed_max_mhz"] = get_cpu_max_speed_mhz()
             # Wi-Fi signal + active connections (best-effort; None when unavailable)
             wifi_signal = get_wifi_signal_info()
             payload["wifi_signal_dbm"] = wifi_signal.get("signal_dbm")
