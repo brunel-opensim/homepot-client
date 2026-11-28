@@ -1,5 +1,8 @@
 {
     "success_rate": $success_rate,
     "num_devices": $num_devices,
+    "delivery_delay_ms": $delivery_delay_ms,
+    "network_latency_ms": $network_latency_ms,
+    "wifi_signal_dbm": $wifi_signal_dbm,
     "outfile": "$outfile"
 }
