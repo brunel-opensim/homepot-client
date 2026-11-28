@@ -239,6 +239,7 @@ nav:
           - "Study 1: Anomaly Detector Sensitivity": uq/study1-anomaly.md
           - "Study 2: Simulator Scenario Validation": uq/study2-simulator.md
           - "Study 3: Push Notification Reliability": uq/study3-push.md
+      - "Study 4: Extended Anomaly Detector Sensitivity": uq/study4-extended.md
 
 # Extra
 extra:
